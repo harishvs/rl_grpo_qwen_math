@@ -1,0 +1,75 @@
+# Node Groups Module Variables
+
+variable "project_name" {
+  description = "Name of the project, used for resource naming"
+  type        = string
+}
+
+variable "environment" {
+  description = "Environment name (dev, staging, prod)"
+  type        = string
+}
+
+variable "cluster_name" {
+  description = "Name of the EKS cluster"
+  type        = string
+}
+
+variable "subnet_ids" {
+  description = "List of subnet IDs for node groups"
+  type        = list(string)
+}
+
+variable "gpu_instance_types" {
+  description = "Instance types for GPU node group"
+  type        = list(string)
+  default     = ["g5.48xlarge"]
+}
+
+variable "gpu_desired_size" {
+  description = "Desired number of GPU nodes"
+  type        = number
+  default     = 1
+}
+
+variable "gpu_min_size" {
+  description = "Minimum number of GPU nodes"
+  type        = number
+  default     = 0
+}
+
+variable "gpu_max_size" {
+  description = "Maximum number of GPU nodes"
+  type        = number
+  default     = 2
+}
+
+variable "cpu_instance_types" {
+  description = "Instance types for CPU node group"
+  type        = list(string)
+  default     = ["c7i.large"]
+}
+
+variable "cpu_desired_size" {
+  description = "Desired number of CPU nodes"
+  type        = number
+  default     = 2
+}
+
+variable "cpu_min_size" {
+  description = "Minimum number of CPU nodes"
+  type        = number
+  default     = 1
+}
+
+variable "cpu_max_size" {
+  description = "Maximum number of CPU nodes"
+  type        = number
+  default     = 10
+}
+
+variable "tags" {
+  description = "Common tags to apply to all resources"
+  type        = map(string)
+  default     = {}
+}

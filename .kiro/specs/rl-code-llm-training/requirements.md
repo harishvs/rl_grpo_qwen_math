@@ -33,7 +33,7 @@ This example provides the baseline configuration for running GRPO training with 
 
 1. THE EKS cluster SHALL be deployed in a single AWS region
 2. THE cluster SHALL have a GPU node group using g5.48xlarge instances for trainer, actor, reference, and rollout generation
-3. THE cluster SHALL have a CPU node group using c7i instances for environment, tool-calling, and reward computation
+3. THE cluster SHALL have a CPU node group using c7i.large instances for environment, tool-calling, and reward computation
 4. THE cluster networking SHALL allow communication between GPU and CPU nodes over the internal network
 5. THE cluster SHALL support DNS resolution for CPU services from GPU pods
 
@@ -110,6 +110,20 @@ This example provides the baseline configuration for running GRPO training with 
 5. THE trainer SHALL update the model based on returned rewards via GRPO
 6. Training SHALL complete multiple GRPO epochs on the EKS cluster
 
+### Requirement 8: Infrastructure as Code with Terraform
+
+**User Story:** As an ML engineer, I want all AWS infrastructure to be provisioned using Terraform, so that I can version control, reproduce, and manage the infrastructure declaratively.
+
+#### Acceptance Criteria
+
+1. ALL AWS infrastructure SHALL be defined using Terraform configuration files
+2. THE Terraform configuration SHALL provision the EKS cluster, node groups, and networking components
+3. THE Terraform configuration SHALL use modules for reusable infrastructure components (VPC, EKS, node groups)
+4. THE Terraform state SHALL be stored remotely (e.g., S3 backend with DynamoDB locking)
+5. THE Terraform configuration SHALL initially target a dev environment, with structure allowing future expansion to staging/prod
+6. THE Terraform configuration SHALL include proper tagging for cost allocation and resource identification
+7. THE infrastructure SHALL be deployable with standard Terraform commands (`terraform init`, `plan`, `apply`)
+
 ## Acceptance Criteria (System-Level)
 
 The setup is considered successful when:
@@ -123,3 +137,5 @@ The setup is considered successful when:
 4. **Reasoning Quality**: The model's outputs contain coherent step-by-step reasoning aligned with correct solutions for basic math tasks (multi-step arithmetic word problems)
 
 5. **Operational Success**: All components run as scheduled workloads in EKS without resource exhaustion or persistent connectivity issues
+
+6. **Infrastructure as Code**: All AWS infrastructure is provisioned via Terraform with remote state management and can be reproduced from configuration files
