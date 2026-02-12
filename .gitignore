@@ -7,4 +7,11 @@ terraform/environments/dev/terraform.tfstate.backup
 terraform/bootstrap/.terraform
 terraform/bootstrap/.terraform.lock.hcl
 .terraform
+terraform/environments/dev/terraform.tfstate
+terraform/bootstrap/terraform.tfstate
+**/.terraform/
+**/.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup
+
 
