@@ -1,0 +1,32 @@
+# Training Configuration ConfigMap
+# Contains hyperparameters for GRPO training
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: training-config
+  labels:
+    app: grpo-trainer
+    component: configuration
+data:
+  # Model configuration
+  model_name: "Qwen/Qwen2.5-1.5B"
+  
+  # GRPO hyperparameters
+  group_size: "8"
+  learning_rate: "1e-6"
+  kl_coef: "0.1"
+  clip_range: "0.2"
+  max_grad_norm: "1.0"
+  
+  # Training loop
+  batch_size: "32"
+  num_epochs: "3"
+  gradient_accumulation_steps: "4"
+  
+  # Generation
+  max_new_tokens: "512"
+  temperature: "1.0"
+  top_p: "1.0"
+  
+  # Checkpointing
+  checkpoint_interval: "100"

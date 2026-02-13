@@ -45,3 +45,18 @@ output "configure_kubectl" {
   description = "Command to configure kubectl"
   value       = "aws eks update-kubeconfig --region ${var.aws_region} --name ${module.eks.cluster_name}"
 }
+
+output "checkpoints_bucket_name" {
+  description = "Name of the S3 bucket for model checkpoints"
+  value       = aws_s3_bucket.checkpoints.id
+}
+
+output "checkpoints_bucket_arn" {
+  description = "ARN of the S3 bucket for model checkpoints"
+  value       = aws_s3_bucket.checkpoints.arn
+}
+
+output "grpo_trainer_role_arn" {
+  description = "ARN of the IAM role for GRPO trainer service account"
+  value       = aws_iam_role.grpo_trainer.arn
+}

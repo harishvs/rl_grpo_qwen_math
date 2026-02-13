@@ -1,0 +1,89 @@
+# GRPO Trainer Job
+# Runs on GPU nodes (g5.48xlarge) for model training
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: grpo-trainer
+  labels:
+    app: grpo-trainer
+    component: model-training
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: grpo-trainer
+        component: model-training
+    spec:
+      nodeSelector:
+        node-type: gpu
+      serviceAccountName: grpo-trainer-sa
+      restartPolicy: OnFailure
+      containers:
+      - name: trainer
+        image: ${ECR_REPO}/trainer:latest
+        resources:
+          requests:
+            cpu: "32"
+            memory: "256Gi"
+            nvidia.com/gpu: "8"
+          limits:
+            cpu: "96"
+            memory: "384Gi"
+            nvidia.com/gpu: "8"
+        env:
+        - name: MODEL_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: training-config
+              key: model_name
+        - name: ENVIRONMENT_SERVICE_URL
+          value: "http://environment-service:8080"
+        - name: CHECKPOINT_DIR
+          value: "s3://$(S3_BUCKET)/checkpoints"
+        - name: BATCH_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: training-config
+              key: batch_size
+        - name: NUM_EPOCHS
+          valueFrom:
+            configMapKeyRef:
+              name: training-config
+              key: num_epochs
+        - name: GROUP_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: training-config
+              key: group_size
+        - name: LEARNING_RATE
+          valueFrom:
+            configMapKeyRef:
+              name: training-config
+              key: learning_rate
+        - name: KL_COEF
+          valueFrom:
+            configMapKeyRef:
+              name: training-config
+              key: kl_coef
+        - name: CLIP_RANGE
+          valueFrom:
+            configMapKeyRef:
+              name: training-config
+              key: clip_range
+        - name: S3_BUCKET
+          valueFrom:
+            secretKeyRef:
+              name: training-secrets
+              key: s3_bucket
+        - name: AWS_DEFAULT_REGION
+          value: "us-east-1"
+        volumeMounts:
+        - name: shm
+          mountPath: /dev/shm
+      volumes:
+      - name: shm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 64Gi
+      terminationGracePeriodSeconds: 300

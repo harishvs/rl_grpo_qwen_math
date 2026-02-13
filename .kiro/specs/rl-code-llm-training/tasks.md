@@ -149,27 +149,27 @@ This implementation plan breaks down the GRPO training system into discrete codi
   - Test trainer initialization locally (without full cluster)
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 7. Create Kubernetes manifests
-  - [ ] 7.1 Create environment service deployment and service
+- [x] 7. Create Kubernetes manifests
+  - [x] 7.1 Create environment service deployment and service
     - Create `k8s/environment/deployment.yaml` with nodeSelector for CPU nodes
     - Create `k8s/environment/service.yaml` with ClusterIP service
     - Configure resource requests/limits for c7i.large
     - Add health check probes
     - _Requirements: 3.1, 3.6, 1.4, 1.5_
   
-  - [ ] 7.2 Create trainer job manifest
+  - [x] 7.2 Create trainer job manifest
     - Create `k8s/trainer/job.yaml` with nodeSelector for GPU nodes
     - Configure resource requests for g5.48xlarge (8 GPUs)
     - Mount S3 credentials for checkpoint saving
     - Set environment variables for environment service URL
     - _Requirements: 2.1, 1.4, 1.5_
   
-  - [ ] 7.3 Create ConfigMaps and Secrets
+  - [x] 7.3 Create ConfigMaps and Secrets
     - Create `k8s/config/training-config.yaml` with training hyperparameters
     - Create `k8s/config/secrets.yaml` template for AWS credentials
     - _Requirements: 4.1_
   
-  - [ ]* 7.4 Write property test for node placement invariant
+  - [x] 7.4 Write property test for node placement invariant
     - **Property 6: Node Placement Invariant**
     - Verify pod specs have correct nodeSelectors
     - **Validates: Requirements 2.1, 3.1, 6.4, 6.5**

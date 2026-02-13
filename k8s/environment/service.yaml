@@ -1,0 +1,18 @@
+# Environment Service
+# ClusterIP service for internal communication from trainer pods
+apiVersion: v1
+kind: Service
+metadata:
+  name: environment-service
+  labels:
+    app: environment-service
+    component: reward-computation
+spec:
+  type: ClusterIP
+  selector:
+    app: environment-service
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
