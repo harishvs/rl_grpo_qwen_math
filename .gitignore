@@ -13,5 +13,5 @@ terraform/bootstrap/terraform.tfstate
 **/.terraform.lock.hcl
 *.tfstate
 *.tfstate.backup
-
-
+.hypothesis
+**/__pycache__

@@ -11,8 +11,7 @@ For any valid RewardRequest containing N trajectories:
 """
 
 import time
-import pytest
-from hypothesis import given, settings, strategies as st
+from hypothesis import given, settings, strategies as st, HealthCheck
 from fastapi.testclient import TestClient
 
 from src.environment.service import app
@@ -20,13 +19,6 @@ from src.environment.service import app
 
 # Timeout threshold in seconds (from service config)
 TIMEOUT_THRESHOLD_SECONDS = 30.0
-
-
-@pytest.fixture
-def client():
-    """Create test client."""
-    with TestClient(app) as c:
-        yield c
 
 
 # Strategy for generating valid trajectory data
@@ -40,6 +32,17 @@ trajectory_strategy = st.fixed_dictionaries({
 trajectories_strategy = st.lists(trajectory_strategy, min_size=1, max_size=20)
 
 
+# Module-level client with proper lifespan management
+# Using __enter__/__exit__ to ensure lifespan is properly initialized
+_client_context = TestClient(app)
+_client_context.__enter__()
+
+
+def _get_client():
+    """Get the initialized test client."""
+    return _client_context
+
+
 class TestEnvironmentServiceContract:
     """
     Property-based tests for Environment Service Contract.
@@ -48,8 +51,8 @@ class TestEnvironmentServiceContract:
     """
     
     @given(trajectories=trajectories_strategy)
-    @settings(max_examples=100, deadline=None)
-    def test_response_length_matches_request(self, client, trajectories):
+    @settings(max_examples=100, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    def test_response_length_matches_request(self, trajectories):
         """
         Property 4: Environment Service Contract
         
@@ -58,6 +61,7 @@ class TestEnvironmentServiceContract:
         
         **Validates: Requirements 3.2, 3.3, 3.5**
         """
+        client = _get_client()
         n = len(trajectories)
         
         start_time = time.time()
@@ -88,13 +92,14 @@ class TestEnvironmentServiceContract:
         )
     
     @given(trajectories=trajectories_strategy)
-    @settings(max_examples=100, deadline=None)
-    def test_rewards_are_valid_floats(self, client, trajectories):
+    @settings(max_examples=100, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    def test_rewards_are_valid_floats(self, trajectories):
         """
         Property: All returned rewards SHALL be valid floats in range [0.0, 1.2].
         
         **Validates: Requirements 3.3**
         """
+        client = _get_client()
         response = client.post(
             "/compute_rewards",
             json={"trajectories": trajectories}
@@ -112,13 +117,14 @@ class TestEnvironmentServiceContract:
             )
     
     @given(trajectories=trajectories_strategy)
-    @settings(max_examples=100, deadline=None)
-    def test_details_structure_valid(self, client, trajectories):
+    @settings(max_examples=100, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    def test_details_structure_valid(self, trajectories):
         """
         Property: All returned details SHALL have valid structure.
         
         **Validates: Requirements 3.3**
         """
+        client = _get_client()
         response = client.post(
             "/compute_rewards",
             json={"trajectories": trajectories}

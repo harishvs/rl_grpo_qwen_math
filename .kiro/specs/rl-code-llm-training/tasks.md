@@ -56,12 +56,12 @@ This implementation plan breaks down the GRPO training system into discrete codi
     - Implement `compute_reward()` combining correctness and format scores
     - _Requirements: 5.1, 5.2, 5.3_
   
-  - [ ] 3.2 Write property test for reward determinism
+  - [x] 3.2 Write property test for reward determinism
     - **Property 2: Reward Determinism**
     - Generate random trajectories, verify identical rewards on repeated calls
     - **Validates: Requirements 5.4**
   
-  - [ ] 3.3 Write property test for reward correctness
+  - [x] 3.3 Write property test for reward correctness
     - **Property 3: Reward Correctness**
     - Generate completions with known answers, verify correctness_score is binary
     - Verify total reward is in valid range [0.0, 1.2]
@@ -74,7 +74,7 @@ This implementation plan breaks down the GRPO training system into discrete codi
     - Add request timeout handling and error responses
     - _Requirements: 3.2, 3.3, 3.5_
   
-  - [ ] 3.5 Write property test for environment service contract
+  - [x] 3.5 Write property test for environment service contract
     - **Property 4: Environment Service Contract**
     - Generate random RewardRequests, verify response length matches request
     - **Validates: Requirements 3.2, 3.3, 3.5**
@@ -85,66 +85,66 @@ This implementation plan breaks down the GRPO training system into discrete codi
     - Install FastAPI, uvicorn, and dependencies
     - _Requirements: 3.1_
 
-- [ ] 4. Checkpoint - Validate reward service
+- [x] 4. Checkpoint - Validate reward service
   - Run unit tests and property tests for reward computation
   - Test service locally with sample requests
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 5. Implement GRPO training components (GPU side)
-  - [ ] 5.1 Create data models and configuration
+- [x] 5. Implement GRPO training components (GPU side)
+  - [x] 5.1 Create data models and configuration
     - Create `src/trainer/config.py` with `TrainingConfig`, `FSDPConfig` dataclasses
     - Create `src/trainer/models.py` with `Rollout`, `Trajectory`, `RewardRequest/Response`
     - _Requirements: 4.1, 4.3_
   
-  - [ ] 5.2 Create dataset loader for GSM8K-style problems
+  - [x] 5.2 Create dataset loader for GSM8K-style problems
     - Create `src/trainer/dataset.py` with `MathProblemDataset` class
     - Implement prompt formatting for Qwen model
     - Support loading from HuggingFace datasets or local files
     - _Requirements: 4.3, 7.1_
   
-  - [ ] 5.3 Implement GRPO advantage computation
+  - [x] 5.3 Implement GRPO advantage computation
     - Create `src/trainer/grpo.py` with advantage calculation logic
     - Implement group normalization: `A_i = (r_i - mean(R)) / std(R)`
     - Handle edge case where std = 0 (all rewards identical)
     - _Requirements: 2.6, 7.5_
   
-  - [ ]* 5.4 Write property test for GRPO advantage normalization
+  - [x] 5.4 Write property test for GRPO advantage normalization
     - **Property 5: GRPO Advantage Normalization**
     - Generate random reward groups, verify mean ≈ 0 and std ≈ 1
     - **Validates: Requirements 2.6, 7.5**
   
-  - [ ] 5.5 Implement environment client
+  - [x] 5.5 Implement environment client
     - Create `src/trainer/environment_client.py`
     - Implement async HTTP client for environment service
     - Add retry logic with exponential backoff
     - Add timeout handling
     - _Requirements: 2.5, 3.4, 6.2, 6.3_
   
-  - [ ] 5.6 Implement veRL-based trainer
+  - [x] 5.6 Implement veRL-based trainer
     - Create `src/trainer/trainer.py` with `GRPOTrainer` class
     - Integrate with veRL's `RayPPOTrainer` pattern
     - Configure FSDP for actor model, CPU offload for reference model
     - Implement `train_step()` orchestrating rollout → reward → update
     - _Requirements: 2.2, 2.3, 2.4, 2.6, 4.2, 4.4, 7.2, 7.3, 7.4, 7.5_
   
-  - [ ]* 5.7 Write property test for training loop round-trip
+  - [x] 5.7 Write property test for training loop round-trip
     - **Property 1: Training Loop Round-Trip**
     - Mock environment service, verify trajectory/reward count invariants
     - **Validates: Requirements 2.4, 2.5, 2.6, 7.1, 7.2, 7.3, 7.4, 7.5**
   
-  - [ ] 5.8 Create training entrypoint script
+  - [x] 5.8 Create training entrypoint script
     - Create `src/trainer/main.py` with CLI for training
     - Support configuration via environment variables and config files
     - Implement checkpoint saving to S3
     - _Requirements: 7.6_
   
-  - [ ] 5.9 Create Dockerfile for trainer
+  - [x] 5.9 Create Dockerfile for trainer
     - Create `docker/trainer/Dockerfile`
     - Use NVIDIA CUDA base image with PyTorch
     - Install veRL, vLLM, transformers, and dependencies
     - _Requirements: 2.1_
 
-- [ ] 6. Checkpoint - Validate training components
+- [x] 6. Checkpoint - Validate training components
   - Run unit tests and property tests for GRPO logic
   - Test trainer initialization locally (without full cluster)
   - Ensure all tests pass, ask the user if questions arise.

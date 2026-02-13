@@ -1,0 +1,22 @@
+# GRPO Trainer dependencies
+# Note: PyTorch, CUDA, and transformers are included in the NVIDIA NGC base image
+
+# veRL framework for distributed RL training
+verl>=0.2.0
+
+# vLLM for efficient inference
+vllm>=0.6.0
+
+# HuggingFace libraries (transformers included in base, but pin version)
+datasets>=2.14.0
+accelerate>=0.25.0
+
+# Async HTTP client for environment service
+aiohttp>=3.9.0
+
+# AWS SDK for S3 checkpoint storage
+boto3>=1.34.0
+
+# Configuration and utilities
+pydantic>=2.0.0
+python-dotenv>=1.0.0
