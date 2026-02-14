@@ -1,4 +1,4 @@
-"""Training entrypoint script for GRPO training."""
+"""Training entrypoint script for GRPO training with distributed support."""
 
 import argparse
 import asyncio
@@ -7,6 +7,12 @@ import logging
 import os
 import sys
 from pathlib import Path
+
+import torch
+import torch.distributed as dist
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+from torch.distributed.fsdp import ShardingStrategy, MixedPrecision
+from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 
 from src.trainer.config import TrainingConfig, FSDPConfig
 from src.trainer.trainer import GRPOTrainer
@@ -18,6 +24,41 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+
+def setup_distributed():
+    """Initialize distributed training environment."""
+    if "RANK" in os.environ:
+        # Running with torchrun
+        rank = int(os.environ["RANK"])
+        world_size = int(os.environ["WORLD_SIZE"])
+        local_rank = int(os.environ["LOCAL_RANK"])
+    elif "SLURM_PROCID" in os.environ:
+        # Running with SLURM
+        rank = int(os.environ["SLURM_PROCID"])
+        world_size = int(os.environ["SLURM_NTASKS"])
+        local_rank = int(os.environ["SLURM_LOCALID"])
+    else:
+        # Single GPU fallback
+        rank = 0
+        world_size = 1
+        local_rank = 0
+    
+    if world_size > 1:
+        dist.init_process_group(
+            backend="nccl",
+            rank=rank,
+            world_size=world_size,
+        )
+        torch.cuda.set_device(local_rank)
+    
+    return rank, world_size, local_rank
+
+
+def cleanup_distributed():
+    """Clean up distributed training."""
+    if dist.is_initialized():
+        dist.destroy_process_group()
 
 
 def load_config_from_file(path: str) -> dict:
@@ -46,6 +87,7 @@ def load_config_from_env() -> dict:
         "ENVIRONMENT_SERVICE_URL": "environment_service_url",
         "CHECKPOINT_DIR": "checkpoint_dir",
         "CHECKPOINT_INTERVAL": ("checkpoint_interval", int),
+        "MAX_SAMPLES": ("max_samples", int),
     }
     
     for env_var, mapping in env_mappings.items():
@@ -91,30 +133,50 @@ def build_config(args: argparse.Namespace) -> TrainingConfig:
 
 
 async def train(config: TrainingConfig, dataset_path: str, max_samples: int = None):
-    """Run the training loop."""
-    logger.info("Starting GRPO training")
-    logger.info(f"Config: {config}")
+    """Run the training loop with distributed support."""
+    # Setup distributed
+    rank, world_size, local_rank = setup_distributed()
+    is_main = rank == 0
+    
+    if is_main:
+        logger.info("Starting GRPO training")
+        logger.info(f"Config: {config}")
+        logger.info(f"World size: {world_size}, Rank: {rank}, Local rank: {local_rank}")
+    
+    # Use max_samples from config if not provided as argument
+    if max_samples is None:
+        max_samples = getattr(config, 'max_samples', None)
     
     # Load dataset
     if dataset_path:
-        logger.info(f"Loading dataset from {dataset_path}")
+        if is_main:
+            logger.info(f"Loading dataset from {dataset_path}")
         dataset = MathProblemDataset.from_json(dataset_path)
     else:
-        logger.info("Loading GSM8K dataset from HuggingFace")
+        if is_main:
+            logger.info(f"Loading GSM8K dataset from HuggingFace (max_samples={max_samples})")
         dataset = MathProblemDataset.from_huggingface(
             max_samples=max_samples
         )
     
-    logger.info(f"Dataset size: {len(dataset)}")
+    if is_main:
+        logger.info(f"Dataset size: {len(dataset)}")
     
-    # Initialize trainer
+    # Initialize trainer with distributed config
     trainer = GRPOTrainer(config)
-    trainer.setup()
+    trainer.setup(rank=rank, world_size=world_size, local_rank=local_rank)
+    
+    # Synchronize all ranks before starting training
+    if world_size > 1 and dist.is_initialized():
+        dist.barrier()
+        if is_main:
+            logger.info("All ranks synchronized, starting training loop")
     
     # Training loop
     total_steps = 0
     for epoch in range(config.num_epochs):
-        logger.info(f"Starting epoch {epoch + 1}/{config.num_epochs}")
+        if is_main:
+            logger.info(f"Starting epoch {epoch + 1}/{config.num_epochs}")
         
         offset = 0
         while offset < len(dataset):
@@ -125,19 +187,23 @@ async def train(config: TrainingConfig, dataset_path: str, max_samples: int = No
             metrics = await trainer.train_step(batch)
             total_steps += 1
             
-            logger.info(
-                f"Step {total_steps}: "
-                f"loss={metrics.policy_loss:.4f}, "
-                f"reward={metrics.mean_reward:.4f}, "
-                f"kl={metrics.kl_divergence:.4f}"
-            )
+            if is_main:
+                logger.info(
+                    f"Step {total_steps}: "
+                    f"loss={metrics.policy_loss:.4f}, "
+                    f"reward={metrics.mean_reward:.4f}, "
+                    f"kl={metrics.kl_divergence:.4f}"
+                )
             
             offset += config.batch_size
     
-    # Final checkpoint
-    final_path = f"{config.checkpoint_dir}/final"
-    trainer.save_checkpoint(final_path)
-    logger.info(f"Training complete. Final checkpoint saved to {final_path}")
+    # Final checkpoint (only main process)
+    if is_main:
+        final_path = f"{config.checkpoint_dir}/final"
+        trainer.save_checkpoint(final_path)
+        logger.info(f"Training complete. Final checkpoint saved to {final_path}")
+    
+    cleanup_distributed()
 
 
 def main():

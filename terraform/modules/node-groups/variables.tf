@@ -68,6 +68,18 @@ variable "cpu_max_size" {
   default     = 10
 }
 
+variable "gpu_disk_size" {
+  description = "Root volume size in GB for GPU nodes"
+  type        = number
+  default     = 100
+}
+
+variable "cpu_disk_size" {
+  description = "Root volume size in GB for CPU nodes"
+  type        = number
+  default     = 50
+}
+
 variable "tags" {
   description = "Common tags to apply to all resources"
   type        = map(string)

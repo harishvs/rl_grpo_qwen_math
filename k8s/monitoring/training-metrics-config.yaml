@@ -1,0 +1,85 @@
+# Training Metrics Configuration
+# Configures metrics logging for GRPO trainer
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: training-metrics-config
+  namespace: default
+  labels:
+    app: grpo-trainer
+    component: monitoring
+data:
+  # Metrics to log during training
+  metrics_config.json: |
+    {
+      "metrics": {
+        "enabled": true,
+        "log_interval_steps": 10,
+        "cloudwatch": {
+          "enabled": true,
+          "namespace": "RLCodeLLMTraining",
+          "dimensions": {
+            "Environment": "dev",
+            "Model": "Qwen2.5-1.5B"
+          }
+        },
+        "tracked_metrics": [
+          {
+            "name": "policy_loss",
+            "description": "GRPO policy loss",
+            "unit": "None"
+          },
+          {
+            "name": "kl_divergence",
+            "description": "KL divergence from reference model",
+            "unit": "None"
+          },
+          {
+            "name": "mean_reward",
+            "description": "Mean reward across batch",
+            "unit": "None"
+          },
+          {
+            "name": "clip_fraction",
+            "description": "Fraction of clipped policy updates",
+            "unit": "Percent"
+          },
+          {
+            "name": "advantages_mean",
+            "description": "Mean of computed advantages",
+            "unit": "None"
+          },
+          {
+            "name": "advantages_std",
+            "description": "Standard deviation of advantages",
+            "unit": "None"
+          },
+          {
+            "name": "learning_rate",
+            "description": "Current learning rate",
+            "unit": "None"
+          },
+          {
+            "name": "gradient_norm",
+            "description": "Gradient norm before clipping",
+            "unit": "None"
+          },
+          {
+            "name": "environment_latency_ms",
+            "description": "Latency of environment service calls",
+            "unit": "Milliseconds"
+          },
+          {
+            "name": "rollout_throughput",
+            "description": "Rollouts generated per second",
+            "unit": "Count/Second"
+          }
+        ]
+      },
+      "logging": {
+        "level": "INFO",
+        "format": "json",
+        "include_timestamp": true,
+        "log_to_stdout": true
+      }
+    }

@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
-COPY requirements-trainer.txt /app/requirements-trainer.txt
+COPY docker/trainer/requirements-trainer.txt /app/requirements-trainer.txt
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements-trainer.txt
@@ -39,5 +39,9 @@ RUN mkdir -p /checkpoints
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import torch; print(torch.cuda.is_available())" || exit 1
 
-# Entrypoint
-ENTRYPOINT ["python", "-m", "src.trainer.main"]
+# Copy entrypoint script
+COPY docker/trainer/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+# Entrypoint - uses torchrun for distributed training
+ENTRYPOINT ["/app/entrypoint.sh"]

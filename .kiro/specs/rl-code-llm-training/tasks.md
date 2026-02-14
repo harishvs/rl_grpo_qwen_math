@@ -174,30 +174,30 @@ This implementation plan breaks down the GRPO training system into discrete codi
     - Verify pod specs have correct nodeSelectors
     - **Validates: Requirements 2.1, 3.1, 6.4, 6.5**
 
-- [ ] 8. Checkpoint - Validate Kubernetes manifests
+- [x] 8. Checkpoint - Validate Kubernetes manifests
   - Run `kubectl apply --dry-run=client` on all manifests
   - Verify nodeSelectors and resource requests are correct
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 9. Integration and end-to-end wiring
-  - [ ] 9.1 Create deployment scripts
+- [x] 9. Integration and end-to-end wiring
+  - [x] 9.1 Create deployment scripts
     - Create `scripts/deploy-infrastructure.sh` for Terraform apply
     - Create `scripts/deploy-services.sh` for kubectl apply
     - Create `scripts/run-training.sh` to launch training job
     - _Requirements: 8.7_
   
-  - [ ] 9.2 Create integration test suite
+  - [x] 9.2 Create integration test suite
     - Create `tests/integration/test_e2e.py`
     - Test environment service reachability from trainer pod
     - Test single training step execution
     - _Requirements: 7.6_
   
-  - [ ] 9.3 Add monitoring and logging configuration
+  - [x] 9.3 Add monitoring and logging configuration
     - Create `k8s/monitoring/` with basic CloudWatch agent config
     - Configure trainer to log metrics (loss, reward, KL divergence)
     - _Requirements: 6.2_
 
-- [ ] 10. Final checkpoint - End-to-end validation
+- [x] 10. Final checkpoint - End-to-end validation
   - Deploy infrastructure with Terraform
   - Deploy services to EKS
   - Run short training job (1 epoch)

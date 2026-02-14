@@ -67,6 +67,7 @@ resource "aws_eks_node_group" "gpu" {
   subnet_ids      = var.subnet_ids
   instance_types  = var.gpu_instance_types
   ami_type        = "AL2_x86_64_GPU"
+  disk_size       = var.gpu_disk_size
 
   scaling_config {
     desired_size = var.gpu_desired_size
@@ -103,6 +104,7 @@ resource "aws_eks_node_group" "cpu" {
   subnet_ids      = var.subnet_ids
   instance_types  = var.cpu_instance_types
   ami_type        = "AL2_x86_64"
+  disk_size       = var.cpu_disk_size
 
   scaling_config {
     desired_size = var.cpu_desired_size

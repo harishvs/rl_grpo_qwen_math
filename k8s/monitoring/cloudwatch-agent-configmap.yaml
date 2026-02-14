@@ -1,0 +1,32 @@
+# CloudWatch Agent Configuration
+# Configures metrics collection for GRPO training workloads
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudwatch-agent-config
+  namespace: amazon-cloudwatch
+  labels:
+    app: cloudwatch-agent
+data:
+  cwagentconfig.json: |
+    {
+      "logs": {
+        "metrics_collected": {
+          "kubernetes": {
+            "cluster_name": "${CLUSTER_NAME}",
+            "metrics_collection_interval": 60
+          }
+        },
+        "force_flush_interval": 5
+      },
+      "metrics": {
+        "namespace": "RLCodeLLMTraining",
+        "metrics_collected": {
+          "kubernetes": {
+            "cluster_name": "${CLUSTER_NAME}",
+            "metrics_collection_interval": 60,
+            "enhanced_container_insights": true
+          }
+        }
+      }
+    }

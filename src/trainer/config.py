@@ -41,6 +41,9 @@ class TrainingConfig:
     checkpoint_dir: str = "s3://bucket/checkpoints"
     checkpoint_interval: int = 100
     
+    # Dataset
+    max_samples: Optional[int] = None
+    
     # FSDP config
     fsdp: FSDPConfig = field(default_factory=FSDPConfig)
 

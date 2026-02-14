@@ -21,7 +21,10 @@ spec:
       restartPolicy: OnFailure
       containers:
       - name: trainer
-        image: ${ECR_REPO}/trainer:latest
+        # Image URL is managed by Terraform via image-config ConfigMap
+        # Use: kubectl get configmap image-config -o jsonpath='{.data.trainer_image}'
+        # Or apply after running: terraform output trainer_ecr_repository_url
+        image: "ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/rl-code-llm-training-dev/trainer:latest"
         resources:
           requests:
             cpu: "32"
@@ -76,6 +79,11 @@ spec:
             secretKeyRef:
               name: training-secrets
               key: s3_bucket
+        - name: MAX_SAMPLES
+          valueFrom:
+            configMapKeyRef:
+              name: training-config
+              key: max_samples
         - name: AWS_DEFAULT_REGION
           value: "us-east-1"
         volumeMounts:

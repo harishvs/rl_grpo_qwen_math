@@ -61,6 +61,12 @@ variable "gpu_max_size" {
   default     = 2
 }
 
+variable "gpu_disk_size" {
+  description = "Root volume size in GB for GPU nodes"
+  type        = number
+  default     = 100
+}
+
 # CPU Node Group Settings
 variable "cpu_instance_types" {
   description = "Instance types for CPU nodes"
@@ -84,4 +90,53 @@ variable "cpu_max_size" {
   description = "Maximum number of CPU nodes"
   type        = number
   default     = 10
+}
+
+variable "cpu_disk_size" {
+  description = "Root volume size in GB for CPU nodes"
+  type        = number
+  default     = 50
+}
+
+# Training Hyperparameters
+variable "model_name" {
+  description = "Name of the model to train"
+  type        = string
+  default     = "Qwen/Qwen2.5-1.5B"
+}
+
+variable "batch_size" {
+  description = "Training batch size"
+  type        = number
+  default     = 32
+}
+
+variable "num_epochs" {
+  description = "Number of training epochs"
+  type        = number
+  default     = 3
+}
+
+variable "group_size" {
+  description = "GRPO group size (rollouts per prompt)"
+  type        = number
+  default     = 8
+}
+
+variable "learning_rate" {
+  description = "Learning rate for training"
+  type        = number
+  default     = 0.000001
+}
+
+variable "kl_coef" {
+  description = "KL divergence coefficient"
+  type        = number
+  default     = 0.1
+}
+
+variable "clip_range" {
+  description = "PPO clip range"
+  type        = number
+  default     = 0.2
 }

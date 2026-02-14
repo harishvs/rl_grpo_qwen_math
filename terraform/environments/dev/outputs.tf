@@ -60,3 +60,30 @@ output "grpo_trainer_role_arn" {
   description = "ARN of the IAM role for GRPO trainer service account"
   value       = aws_iam_role.grpo_trainer.arn
 }
+
+# ECR Repository Outputs
+output "trainer_ecr_repository_url" {
+  description = "URL of the trainer ECR repository"
+  value       = aws_ecr_repository.trainer.repository_url
+}
+
+output "environment_ecr_repository_url" {
+  description = "URL of the environment service ECR repository"
+  value       = aws_ecr_repository.environment.repository_url
+}
+
+# Docker build and push commands
+output "docker_login_command" {
+  description = "Command to login to ECR"
+  value       = "aws ecr get-login-password --region ${var.aws_region} | docker login --username AWS --password-stdin ${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com"
+}
+
+output "build_trainer_image" {
+  description = "Command to build and push trainer image"
+  value       = "docker build -t ${aws_ecr_repository.trainer.repository_url}:latest -f docker/trainer/Dockerfile . && docker push ${aws_ecr_repository.trainer.repository_url}:latest"
+}
+
+output "build_environment_image" {
+  description = "Command to build and push environment image"
+  value       = "docker build -t ${aws_ecr_repository.environment.repository_url}:latest -f docker/environment/Dockerfile . && docker push ${aws_ecr_repository.environment.repository_url}:latest"
+}

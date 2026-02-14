@@ -1,0 +1,8 @@
+# Monitoring Namespace
+# Dedicated namespace for monitoring components
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: amazon-cloudwatch
+  labels:
+    name: amazon-cloudwatch
