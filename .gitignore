@@ -15,3 +15,4 @@ terraform/bootstrap/terraform.tfstate
 *.tfstate.backup
 .hypothesis
 **/__pycache__
+terraform/environments/dev/.terraform.tfstate.lock.info

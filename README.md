@@ -226,6 +226,12 @@ sharding_strategy=ShardingStrategy.FULL_SHARD
 3. Reduce `max_new_tokens` (shorter generations)
 4. Try `SHARD_GRAD_OP` instead of `FULL_SHARD` (trades memory for communication)
 
+### Checkpointing
+
+Checkpoints are saved to a local EBS volume (`/checkpoints`) every 100 steps. On restart, training resumes from the latest checkpoint.
+
+> **TODO**: Migrate checkpoint storage to FSx for Lustre or S3 One Zone-IA for better durability and multi-node access.
+
 ### Training Time Estimates
 
 With batch_size=4, group_size=2, 3736 samples, 1 epoch:

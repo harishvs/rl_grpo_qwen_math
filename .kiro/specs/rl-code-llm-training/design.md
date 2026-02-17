@@ -382,7 +382,7 @@ class TrainingConfig:
     
     # Infrastructure
     environment_service_url: str = "http://environment-service:8080"
-    checkpoint_dir: str = "s3://bucket/checkpoints"
+    checkpoint_dir: str = "/checkpoints"  # Local EBS volume
     checkpoint_interval: int = 100   # Steps between checkpoints
 
 @dataclass

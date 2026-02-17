@@ -43,7 +43,7 @@ spec:
         - name: ENVIRONMENT_SERVICE_URL
           value: "http://environment-service:8080"
         - name: CHECKPOINT_DIR
-          value: "s3://$(S3_BUCKET)/checkpoints"
+          value: "/checkpoints"
         - name: BATCH_SIZE
           valueFrom:
             configMapKeyRef:
@@ -74,24 +74,29 @@ spec:
             configMapKeyRef:
               name: training-config
               key: clip_range
-        - name: S3_BUCKET
-          valueFrom:
-            secretKeyRef:
-              name: training-secrets
-              key: s3_bucket
         - name: MAX_SAMPLES
           valueFrom:
             configMapKeyRef:
               name: training-config
               key: max_samples
+        - name: CHECKPOINT_INTERVAL
+          valueFrom:
+            configMapKeyRef:
+              name: training-config
+              key: checkpoint_interval
         - name: AWS_DEFAULT_REGION
           value: "us-east-1"
         volumeMounts:
         - name: shm
           mountPath: /dev/shm
+        - name: checkpoints
+          mountPath: /checkpoints
       volumes:
       - name: shm
         emptyDir:
           medium: Memory
           sizeLimit: 64Gi
+      - name: checkpoints
+        persistentVolumeClaim:
+          claimName: grpo-checkpoints
       terminationGracePeriodSeconds: 300

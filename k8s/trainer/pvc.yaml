@@ -1,0 +1,16 @@
+# PersistentVolumeClaim for checkpoints
+# Persists model checkpoints across job restarts
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grpo-checkpoints
+  labels:
+    app: grpo-trainer
+    component: storage
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: gp2
+  resources:
+    requests:
+      storage: 100Gi

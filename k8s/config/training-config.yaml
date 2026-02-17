@@ -29,7 +29,7 @@ data:
   top_p: "1.0"
   
   # Checkpointing
-  checkpoint_interval: "100"
+  checkpoint_interval: "50"
   
   # Dataset
   max_samples: "3736"

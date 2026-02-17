@@ -166,6 +166,30 @@ async def train(config: TrainingConfig, dataset_path: str, max_samples: int = No
     trainer = GRPOTrainer(config)
     trainer.setup(rank=rank, world_size=world_size, local_rank=local_rank)
     
+    # Check for existing checkpoint to resume from
+    resume_step = 0
+    checkpoint_dir = Path(config.checkpoint_dir)
+    if checkpoint_dir.exists():
+        # Find latest checkpoint
+        checkpoints = sorted(
+            [d for d in checkpoint_dir.iterdir() if d.is_dir() and d.name.startswith("step_")],
+            key=lambda x: int(x.name.split("_")[1]),
+            reverse=True
+        )
+        if checkpoints:
+            latest_checkpoint = checkpoints[0]
+            resume_step = int(latest_checkpoint.name.split("_")[1])
+            if is_main:
+                logger.info(f"Found checkpoint at step {resume_step}, resuming...")
+            try:
+                trainer.load_checkpoint(str(latest_checkpoint))
+                if is_main:
+                    logger.info(f"Successfully loaded checkpoint from {latest_checkpoint}")
+            except Exception as e:
+                if is_main:
+                    logger.warning(f"Failed to load checkpoint: {e}, starting from scratch")
+                resume_step = 0
+    
     # Synchronize all ranks before starting training
     if world_size > 1 and dist.is_initialized():
         dist.barrier()
@@ -180,6 +204,13 @@ async def train(config: TrainingConfig, dataset_path: str, max_samples: int = No
         
         offset = 0
         while offset < len(dataset):
+            # Skip batches if resuming
+            batch_step = (offset // config.batch_size) + 1
+            if batch_step <= resume_step:
+                offset += config.batch_size
+                total_steps += 1
+                continue
+            
             batch = dataset.get_batch(config.batch_size, offset)
             if not batch:
                 break

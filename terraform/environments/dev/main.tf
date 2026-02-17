@@ -618,6 +618,52 @@ resource "kubernetes_job" "grpo_trainer" {
   ]
 }
 
+# EBS CSI Driver IAM Role (IRSA)
+resource "aws_iam_role" "ebs_csi_driver" {
+  name = "${var.project_name}-${var.environment}-ebs-csi-driver-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = module.eks.oidc_provider_arn
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "${local.oidc_provider_id}:aud" = "sts.amazonaws.com"
+            "${local.oidc_provider_id}:sub" = "system:serviceaccount:kube-system:ebs-csi-controller-sa"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = local.common_tags
+}
+
+resource "aws_iam_role_policy_attachment" "ebs_csi_driver" {
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+  role       = aws_iam_role.ebs_csi_driver.name
+}
+
+# EBS CSI Driver EKS Addon
+resource "aws_eks_addon" "ebs_csi_driver" {
+  cluster_name             = module.eks.cluster_name
+  addon_name               = "aws-ebs-csi-driver"
+  service_account_role_arn = aws_iam_role.ebs_csi_driver.arn
+  
+  # Use the latest compatible version
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+
+  tags = local.common_tags
+
+  depends_on = [module.node_groups]
+}
+
 # NVIDIA Device Plugin DaemonSet for GPU support
 resource "kubernetes_daemonset" "nvidia_device_plugin" {
   metadata {
@@ -688,6 +734,321 @@ resource "kubernetes_daemonset" "nvidia_device_plugin" {
 
     strategy {
       type = "RollingUpdate"
+    }
+  }
+
+  depends_on = [module.node_groups]
+}
+
+# =============================================================================
+# CloudWatch Container Insights and Fluent Bit Logging
+# =============================================================================
+
+# CloudWatch Log Group for container logs
+resource "aws_cloudwatch_log_group" "container_logs" {
+  name              = "/aws/eks/${var.project_name}-${var.environment}/containers"
+  retention_in_days = 7
+
+  tags = local.common_tags
+}
+
+# CloudWatch Log Group for application logs
+resource "aws_cloudwatch_log_group" "application_logs" {
+  name              = "/aws/eks/${var.project_name}-${var.environment}/application"
+  retention_in_days = 14
+
+  tags = local.common_tags
+}
+
+# IAM Role for Fluent Bit (IRSA)
+resource "aws_iam_role" "fluent_bit" {
+  name = "${var.project_name}-${var.environment}-fluent-bit-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = module.eks.oidc_provider_arn
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "${local.oidc_provider_id}:aud" = "sts.amazonaws.com"
+            "${local.oidc_provider_id}:sub" = "system:serviceaccount:amazon-cloudwatch:fluent-bit"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = local.common_tags
+}
+
+resource "aws_iam_role_policy" "fluent_bit_cloudwatch" {
+  name = "cloudwatch-logs-access"
+  role = aws_iam_role.fluent_bit.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogStream",
+          "logs:CreateLogGroup",
+          "logs:PutLogEvents",
+          "logs:DescribeLogStreams",
+          "logs:DescribeLogGroups"
+        ]
+        Resource = [
+          "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/eks/${var.project_name}-${var.environment}/*",
+          "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/eks/${var.project_name}-${var.environment}/*:*"
+        ]
+      }
+    ]
+  })
+}
+
+# Kubernetes namespace for CloudWatch
+resource "kubernetes_namespace" "amazon_cloudwatch" {
+  metadata {
+    name = "amazon-cloudwatch"
+    labels = {
+      name = "amazon-cloudwatch"
+    }
+  }
+}
+
+# Service Account for Fluent Bit
+resource "kubernetes_service_account" "fluent_bit" {
+  metadata {
+    name      = "fluent-bit"
+    namespace = kubernetes_namespace.amazon_cloudwatch.metadata[0].name
+    annotations = {
+      "eks.amazonaws.com/role-arn" = aws_iam_role.fluent_bit.arn
+    }
+  }
+}
+
+# Fluent Bit ConfigMap
+resource "kubernetes_config_map" "fluent_bit" {
+  metadata {
+    name      = "fluent-bit-config"
+    namespace = kubernetes_namespace.amazon_cloudwatch.metadata[0].name
+    labels = {
+      app = "fluent-bit"
+    }
+  }
+
+  data = {
+    "fluent-bit.conf" = <<-EOF
+      [SERVICE]
+          Flush         5
+          Log_Level     info
+          Daemon        off
+          Parsers_File  parsers.conf
+          HTTP_Server   On
+          HTTP_Listen   0.0.0.0
+          HTTP_Port     2020
+
+      @INCLUDE input-kubernetes.conf
+      @INCLUDE filter-kubernetes.conf
+      @INCLUDE output-cloudwatch.conf
+    EOF
+
+    "input-kubernetes.conf" = <<-EOF
+      [INPUT]
+          Name              tail
+          Tag               kube.*
+          Path              /var/log/containers/*.log
+          Parser            docker
+          DB                /fluent-bit/db/flb_kube.db
+          Mem_Buf_Limit     50MB
+          Skip_Long_Lines   On
+          Refresh_Interval  10
+    EOF
+
+    "filter-kubernetes.conf" = <<-EOF
+      [FILTER]
+          Name                kubernetes
+          Match               kube.*
+          Kube_URL            https://kubernetes.default.svc:443
+          Kube_CA_File        /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          Kube_Token_File     /var/run/secrets/kubernetes.io/serviceaccount/token
+          Kube_Tag_Prefix     kube.var.log.containers.
+          Merge_Log           On
+          Merge_Log_Key       log_processed
+          K8S-Logging.Parser  On
+          K8S-Logging.Exclude Off
+    EOF
+
+    "output-cloudwatch.conf" = <<-EOF
+      [OUTPUT]
+          Name                cloudwatch_logs
+          Match               kube.*
+          region              ${var.aws_region}
+          log_group_name      /aws/eks/${var.project_name}-${var.environment}/containers
+          log_stream_prefix   fluentbit-
+          auto_create_group   true
+    EOF
+
+    "parsers.conf" = <<-EOF
+      [PARSER]
+          Name        docker
+          Format      json
+          Time_Key    time
+          Time_Format %Y-%m-%dT%H:%M:%S.%L
+          Time_Keep   On
+
+      [PARSER]
+          Name        syslog
+          Format      regex
+          Regex       ^<(?<pri>[0-9]+)>(?<time>[^ ]* {1,2}[^ ]* [^ ]*) (?<host>[^ ]*) (?<ident>[a-zA-Z0-9_\/\.\-]*)(?:\[(?<pid>[0-9]+)\])?(?:[^\:]*\:)? *(?<message>.*)$
+          Time_Key    time
+          Time_Format %b %d %H:%M:%S
+    EOF
+  }
+}
+
+# Fluent Bit ClusterRole
+resource "kubernetes_cluster_role" "fluent_bit" {
+  metadata {
+    name = "fluent-bit"
+  }
+
+  rule {
+    api_groups = [""]
+    resources  = ["namespaces", "pods", "pods/logs"]
+    verbs      = ["get", "list", "watch"]
+  }
+}
+
+# Fluent Bit ClusterRoleBinding
+resource "kubernetes_cluster_role_binding" "fluent_bit" {
+  metadata {
+    name = "fluent-bit"
+  }
+
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "ClusterRole"
+    name      = kubernetes_cluster_role.fluent_bit.metadata[0].name
+  }
+
+  subject {
+    kind      = "ServiceAccount"
+    name      = kubernetes_service_account.fluent_bit.metadata[0].name
+    namespace = kubernetes_namespace.amazon_cloudwatch.metadata[0].name
+  }
+}
+
+# Fluent Bit DaemonSet
+resource "kubernetes_daemonset" "fluent_bit" {
+  metadata {
+    name      = "fluent-bit"
+    namespace = kubernetes_namespace.amazon_cloudwatch.metadata[0].name
+    labels = {
+      app     = "fluent-bit"
+      version = "v1"
+    }
+  }
+
+  spec {
+    selector {
+      match_labels = {
+        app = "fluent-bit"
+      }
+    }
+
+    template {
+      metadata {
+        labels = {
+          app     = "fluent-bit"
+          version = "v1"
+        }
+      }
+
+      spec {
+        service_account_name = kubernetes_service_account.fluent_bit.metadata[0].name
+
+        # Tolerate all taints to run on all nodes including GPU nodes
+        toleration {
+          operator = "Exists"
+        }
+
+        container {
+          name  = "fluent-bit"
+          image = "public.ecr.aws/aws-observability/aws-for-fluent-bit:stable"
+
+          port {
+            container_port = 2020
+            name           = "http"
+          }
+
+          resources {
+            requests = {
+              cpu    = "100m"
+              memory = "128Mi"
+            }
+            limits = {
+              cpu    = "500m"
+              memory = "256Mi"
+            }
+          }
+
+          volume_mount {
+            name       = "varlog"
+            mount_path = "/var/log"
+            read_only  = true
+          }
+
+          volume_mount {
+            name       = "varlibdockercontainers"
+            mount_path = "/var/lib/docker/containers"
+            read_only  = true
+          }
+
+          volume_mount {
+            name       = "fluent-bit-config"
+            mount_path = "/fluent-bit/etc/"
+          }
+
+          volume_mount {
+            name       = "fluent-bit-db"
+            mount_path = "/fluent-bit/db"
+          }
+        }
+
+        volume {
+          name = "varlog"
+          host_path {
+            path = "/var/log"
+          }
+        }
+
+        volume {
+          name = "varlibdockercontainers"
+          host_path {
+            path = "/var/lib/docker/containers"
+          }
+        }
+
+        volume {
+          name = "fluent-bit-config"
+          config_map {
+            name = kubernetes_config_map.fluent_bit.metadata[0].name
+          }
+        }
+
+        volume {
+          name = "fluent-bit-db"
+          empty_dir {}
+        }
+
+        termination_grace_period_seconds = 10
+      }
     }
   }
 
