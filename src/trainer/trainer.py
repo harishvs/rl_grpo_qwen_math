@@ -147,7 +147,8 @@ class GRPOTrainer:
         actor_log_probs = self._compute_log_probs(rollouts)
         
         # KL divergence between current policy and policy at generation time
-        kl_div = (actor_log_probs - old_log_probs).mean()
+        # approx KL(π_new || π_old) ≈ E[log(π_new/π_old)] using sampled tokens
+        kl_div = (actor_log_probs - old_log_probs).mean().clamp(min=0)
         
         # Ensure advantages are on the same device as actor
         advantages = advantages.to(device)
@@ -416,17 +417,54 @@ class ActorModel:
         return torch.stack(log_probs_list)
     
     def save(self, path: str):
-        """Save model to path."""
-        if self._model:
+        """Save unflattened FSDP checkpoint in standard HF format."""
+        from torch.distributed.fsdp import FullyShardedDataParallel as FSDP, FullStateDictConfig, StateDictType
+        import torch.distributed as dist
+
+        if not self._model:
+            return
+
+        if isinstance(self._model, FSDP) and self._world_size > 1 and dist.is_initialized():
+            save_policy = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
+            with FSDP.state_dict_type(self._model, StateDictType.FULL_STATE_DICT, save_policy):
+                state_dict = self._model.state_dict()
+                if self._local_rank == 0:
+                    from transformers import AutoModelForCausalLM
+                    dtype = torch.bfloat16 if self.fsdp_config.mixed_precision == "bf16" else torch.float32
+                    ref = AutoModelForCausalLM.from_pretrained(self.model_path, torch_dtype=dtype)
+                    ref.load_state_dict(state_dict)
+                    ref.save_pretrained(path)
+                    self._tokenizer.save_pretrained(path)
+                    del ref
+            dist.barrier()
+        else:
             self._model.save_pretrained(path)
             self._tokenizer.save_pretrained(path)
-    
+
     def load(self, path: str):
-        """Load model from path."""
+        """Load standard HF checkpoint into FSDP-wrapped model."""
+        from torch.distributed.fsdp import FullyShardedDataParallel as FSDP, FullStateDictConfig, StateDictType
+        import torch.distributed as dist
         from transformers import AutoModelForCausalLM, AutoTokenizer
-        
+
         self._tokenizer = AutoTokenizer.from_pretrained(path)
-        self._model = AutoModelForCausalLM.from_pretrained(path)
+        if self._tokenizer.pad_token is None:
+            self._tokenizer.pad_token = self._tokenizer.eos_token
+
+        if isinstance(self._model, FSDP) and self._world_size > 1 and dist.is_initialized():
+            dtype = torch.bfloat16 if self.fsdp_config.mixed_precision == "bf16" else torch.float32
+            full_state = None
+            if self._local_rank == 0:
+                tmp = AutoModelForCausalLM.from_pretrained(path, torch_dtype=dtype)
+                full_state = tmp.state_dict()
+                del tmp
+
+            load_policy = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
+            with FSDP.state_dict_type(self._model, StateDictType.FULL_STATE_DICT, load_policy):
+                self._model.load_state_dict(full_state or {})
+            dist.barrier()
+        else:
+            self._model = AutoModelForCausalLM.from_pretrained(path)
 
 
 class ReferenceModel:

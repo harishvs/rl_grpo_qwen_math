@@ -16,3 +16,4 @@ terraform/bootstrap/terraform.tfstate
 .hypothesis
 **/__pycache__
 terraform/environments/dev/.terraform.tfstate.lock.info
+.DS_Store
