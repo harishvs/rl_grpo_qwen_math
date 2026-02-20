@@ -30,7 +30,7 @@ VLLM_SERVER_IMAGE="${ECR_REGISTRY}/${PROJECT_NAME}/vllm-server"
 
 # Script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 
 # Default to building all images
 BUILD_TARGET=${1:-all}
@@ -74,8 +74,9 @@ build_environment() {
     BUILD_DIR=$(mktemp -d)
     trap "rm -rf ${BUILD_DIR}" EXIT
     
-    # Copy necessary files
-    cp -r "${PROJECT_ROOT}/src" "${BUILD_DIR}/"
+    # Copy necessary files preserving directory structure
+    mkdir -p "${BUILD_DIR}/src/custom"
+    cp -r "${PROJECT_ROOT}/src/custom/environment" "${BUILD_DIR}/src/custom/"
     cp "${PROJECT_ROOT}/docker/custom/environment/Dockerfile" "${BUILD_DIR}/"
     
     # Create requirements.txt for environment service

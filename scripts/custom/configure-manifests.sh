@@ -35,7 +35,7 @@ echo -e "  S3 Bucket: ${S3_BUCKET}"
 
 # Script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 
 echo -e "\n${YELLOW}Updating manifests...${NC}"
 
