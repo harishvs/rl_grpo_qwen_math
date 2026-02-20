@@ -71,10 +71,10 @@ A hand-rolled implementation to understand every piece of the GRPO pipeline. Thi
 
 ### Components
 
-- `src/trainer/trainer.py` — GRPO training loop, FSDP actor model, rollout engine
-- `src/trainer/grpo.py` — Group-normalized advantage computation
-- `src/trainer/main.py` — Entry point, dataset loading, distributed setup
-- `src/environment/service.py` — FastAPI reward service
+- `src/custom/trainer/trainer.py` — GRPO training loop, FSDP actor model, rollout engine
+- `src/custom/trainer/grpo.py` — Group-normalized advantage computation
+- `src/custom/trainer/main.py` — Entry point, dataset loading, distributed setup
+- `src/custom/environment/service.py` — FastAPI reward service
 
 ### What We Learned (5 attempts)
 
@@ -116,9 +116,9 @@ After 49 steps (before crash), reward was oscillating 0.31–0.56 with no clear 
 ./scripts/build-and-push-images.sh all
 
 # Deploy
-kubectl apply -f k8s/config/
-kubectl apply -f k8s/environment/
-kubectl apply -f k8s/trainer/
+kubectl apply -f k8s/custom/config/
+kubectl apply -f k8s/custom/environment/
+kubectl apply -f k8s/custom/trainer/
 
 # Monitor
 kubectl logs -f -l job-name=grpo-trainer
@@ -269,31 +269,39 @@ All infrastructure managed via Terraform (`terraform/environments/dev/`).
 
 ```
 src/
-├── trainer/                    # Custom GRPO trainer
-│   ├── trainer.py              # Training loop, FSDP actor, rollout engine
-│   ├── grpo.py                 # Advantage computation
-│   ├── config.py               # Hyperparameters
-│   ├── main.py                 # Entry point
-│   └── environment_client.py   # HTTP client for reward service
-└── environment/
-    └── service.py              # FastAPI reward service
+├── custom/                     # Approach 1: From-scratch GRPO trainer
+│   ├── trainer/
+│   │   ├── trainer.py          # Training loop, FSDP actor, rollout engine
+│   │   ├── grpo.py             # Advantage computation
+│   │   ├── config.py           # Hyperparameters
+│   │   ├── main.py             # Entry point
+│   │   └── environment_client.py
+│   ├── environment/
+│   │   └── service.py          # FastAPI reward service
+│   └── vllm_server/
+│       └── server.py           # Standalone vLLM server for generation
+└── verl/                       # Approach 2: veRL framework
+    ├── prep_data.py            # GSM8K → parquet
+    ├── reward.py               # Binary reward function
+    └── run_grpo.sh             # Training launch script
 
 k8s/
-├── verl/                       # veRL deployment (recommended)
-│   ├── raycluster.yaml         # RayCluster for 2x p4d.24xlarge
-│   └── configmap.yaml          # Data prep, reward function, training script
-├── trainer/                    # Custom trainer deployment
-│   ├── job.yaml
-│   └── serviceaccount.yaml
-├── environment/
-│   └── deployment.yaml
-└── config/
-    └── training-config.yaml
+├── custom/                     # K8s manifests for from-scratch trainer
+│   ├── trainer/                # GPU training job (torchrun IndexedJob)
+│   ├── environment/            # Reward service deployment
+│   ├── vllm-server/            # Standalone vLLM server
+│   ├── config/                 # Training hyperparameters
+│   └── monitoring/             # CloudWatch agent
+└── verl/                       # K8s manifests for veRL
+    ├── raycluster.yaml         # RayCluster for 2x p4d.24xlarge
+    └── configmap.yaml          # Data prep, reward function, training script
 
-verl-config/                    # Local copies of veRL scripts
-├── prep_data.py                # GSM8K → parquet
-├── reward.py                   # Binary reward function
-└── run_grpo.sh                 # Training launch script
+docker/
+├── custom/                     # Dockerfiles for from-scratch trainer
+│   ├── trainer/
+│   ├── environment/
+│   └── vllm-server/
+└── verl/                       # Dockerfile for veRL (unused, using base image)
 
 terraform/                      # All infrastructure
 ├── environments/dev/
@@ -301,8 +309,8 @@ terraform/                      # All infrastructure
 └── modules/
 
 docs/
-└── run-2026-02-19/
-    └── training-observations.md  # Detailed logs of all 5 custom trainer attempts
+├── run-2026-02-19/             # Custom trainer observations (5 attempts)
+└── run-2026-02-20-verl/        # veRL training observations + results
 ```
 
 ## References
