@@ -17,6 +17,10 @@ terraform {
       source  = "hashicorp/kubernetes"
       version = "~> 2.25"
     }
+    helm = {
+      source  = "hashicorp/helm"
+      version = "~> 2.12"
+    }
   }
 }
 
@@ -36,6 +40,19 @@ provider "kubernetes" {
     api_version = "client.authentication.k8s.io/v1beta1"
     command     = "aws"
     args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name, "--output", "json"]
+  }
+}
+
+provider "helm" {
+  kubernetes {
+    host                   = module.eks.cluster_endpoint
+    cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority)
+
+    exec {
+      api_version = "client.authentication.k8s.io/v1beta1"
+      command     = "aws"
+      args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name, "--output", "json"]
+    }
   }
 }
 
@@ -81,6 +98,11 @@ module "node_groups" {
   environment  = var.environment
   cluster_name = module.eks.cluster_name
   subnet_ids   = module.vpc.private_subnet_ids
+  vpc_id       = module.vpc.vpc_id
+  cluster_security_group_id = module.eks.cluster_security_group_id
+  efa_enabled  = var.efa_enabled
+  capacity_reservation_id = var.capacity_reservation_id
+  gpu_subnet_ids = var.gpu_subnet_ids
 
   # GPU node group settings
   gpu_instance_types = var.gpu_instance_types
@@ -285,337 +307,176 @@ resource "kubernetes_service_account" "grpo_trainer" {
   }
 }
 
-# Training secrets with S3 bucket name
-resource "kubernetes_secret" "training_secrets" {
-  metadata {
-    name      = "training-secrets"
-    namespace = "default"
-    labels = {
-      app       = "grpo-trainer"
-      component = "configuration"
-    }
+
+# =============================================================================
+# FSx for Lustre - Shared storage for multi-node training
+# =============================================================================
+
+# Security group for FSx Lustre
+resource "aws_security_group" "fsx_lustre" {
+  name        = "${var.project_name}-${var.environment}-fsx-lustre-sg"
+  description = "Security group for FSx Lustre filesystem"
+  vpc_id      = module.vpc.vpc_id
+
+  ingress {
+    description = "Lustre traffic from VPC"
+    from_port   = 988
+    to_port     = 988
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
   }
 
-  data = {
-    s3_bucket = aws_s3_bucket.checkpoints.id
+  ingress {
+    description = "Lustre traffic from VPC"
+    from_port   = 1021
+    to_port     = 1023
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
   }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = merge(local.common_tags, {
+    Name = "${var.project_name}-${var.environment}-fsx-lustre-sg"
+  })
 }
 
-# ConfigMap with image URLs for Kubernetes manifests
-resource "kubernetes_config_map" "image_config" {
-  metadata {
-    name      = "image-config"
-    namespace = "default"
-    labels = {
-      app       = "grpo-trainer"
-      component = "configuration"
-    }
-  }
+# FSx for Lustre filesystem
+resource "aws_fsx_lustre_file_system" "training" {
+  storage_capacity            = var.fsx_storage_capacity_gb
+  subnet_ids                  = [module.vpc.private_subnet_ids[0]]
+  security_group_ids          = [aws_security_group.fsx_lustre.id]
+  deployment_type             = "SCRATCH_2"
+  storage_type                = "SSD"
+  file_system_type_version    = "2.15"
 
-  data = {
-    trainer_image     = "${aws_ecr_repository.trainer.repository_url}:latest"
-    environment_image = "${aws_ecr_repository.environment.repository_url}:latest"
-  }
+  tags = merge(local.common_tags, {
+    Name = "${var.project_name}-${var.environment}-fsx-lustre"
+  })
 }
 
-# Training ConfigMap with hyperparameters
-resource "kubernetes_config_map" "training_config" {
-  metadata {
-    name      = "training-config"
-    namespace = "default"
-    labels = {
-      app       = "grpo-trainer"
-      component = "configuration"
-    }
-  }
+# FSx CSI Driver IAM Role (IRSA)
+resource "aws_iam_role" "fsx_csi_driver" {
+  name = "${var.project_name}-${var.environment}-fsx-csi-driver-role"
 
-  data = {
-    model_name    = var.model_name
-    batch_size    = tostring(var.batch_size)
-    num_epochs    = tostring(var.num_epochs)
-    group_size    = tostring(var.group_size)
-    learning_rate = tostring(var.learning_rate)
-    kl_coef       = tostring(var.kl_coef)
-    clip_range    = tostring(var.clip_range)
-  }
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = module.eks.oidc_provider_arn
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "${local.oidc_provider_id}:aud" = "sts.amazonaws.com"
+            "${local.oidc_provider_id}:sub" = "system:serviceaccount:kube-system:fsx-csi-controller-sa"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = local.common_tags
 }
 
-# Environment Service Deployment
-resource "kubernetes_deployment" "environment_service" {
-  metadata {
-    name      = "environment-service"
-    namespace = "default"
-    labels = {
-      app       = "environment-service"
-      component = "reward-computation"
-    }
-  }
+resource "aws_iam_role_policy_attachment" "fsx_csi_driver" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonFSxFullAccess"
+  role       = aws_iam_role.fsx_csi_driver.name
+}
 
-  spec {
-    replicas = 1
+# FSx CSI Driver EKS Addon
+resource "aws_eks_addon" "fsx_csi_driver" {
+  cluster_name             = module.eks.cluster_name
+  addon_name               = "aws-fsx-csi-driver"
+  service_account_role_arn = aws_iam_role.fsx_csi_driver.arn
 
-    selector {
-      match_labels = {
-        app = "environment-service"
-      }
-    }
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
 
-    template {
-      metadata {
-        labels = {
-          app       = "environment-service"
-          component = "reward-computation"
-        }
-      }
-
-      spec {
-        node_selector = {
-          "node-type" = "cpu"
-        }
-
-        container {
-          name  = "environment"
-          image = "${aws_ecr_repository.environment.repository_url}:latest"
-
-          port {
-            container_port = 8080
-            name           = "http"
-            protocol       = "TCP"
-          }
-
-          resources {
-            requests = {
-              cpu    = "1"
-              memory = "2Gi"
-            }
-            limits = {
-              cpu    = "2"
-              memory = "4Gi"
-            }
-          }
-
-          liveness_probe {
-            http_get {
-              path = "/health"
-              port = 8080
-            }
-            initial_delay_seconds = 10
-            period_seconds        = 30
-            timeout_seconds       = 10
-            failure_threshold     = 3
-          }
-
-          readiness_probe {
-            http_get {
-              path = "/health"
-              port = 8080
-            }
-            initial_delay_seconds = 5
-            period_seconds        = 10
-            timeout_seconds       = 5
-            failure_threshold     = 3
-          }
-
-          env {
-            name  = "PYTHONUNBUFFERED"
-            value = "1"
-          }
-        }
-
-        restart_policy                  = "Always"
-        termination_grace_period_seconds = 30
-      }
-    }
-  }
+  tags = local.common_tags
 
   depends_on = [module.node_groups]
 }
 
-# Environment Service
-resource "kubernetes_service" "environment_service" {
+# Kubernetes StorageClass for FSx Lustre
+resource "kubernetes_storage_class" "fsx_lustre" {
   metadata {
-    name      = "environment-service"
-    namespace = "default"
-    labels = {
-      app       = "environment-service"
-      component = "reward-computation"
-    }
+    name = "fsx-lustre"
   }
 
-  spec {
-    selector = {
-      app = "environment-service"
-    }
+  storage_provisioner = "fsx.csi.aws.com"
 
-    port {
-      port        = 8080
-      target_port = 8080
-      protocol    = "TCP"
-      name        = "http"
-    }
-
-    type = "ClusterIP"
+  parameters = {
+    subnetId         = module.vpc.private_subnet_ids[0]
+    securityGroupIds = aws_security_group.fsx_lustre.id
+    deploymentType   = "SCRATCH_2"
+    storageType      = "SSD"
   }
+
+  reclaim_policy      = "Delete"
+  volume_binding_mode = "Immediate"
+
+  depends_on = [aws_eks_addon.fsx_csi_driver]
 }
 
-# GRPO Trainer Job
-resource "kubernetes_job" "grpo_trainer" {
+# Static PV for the FSx Lustre filesystem
+resource "kubernetes_persistent_volume" "fsx_training" {
   metadata {
-    name      = "grpo-trainer"
-    namespace = "default"
-    labels = {
-      app       = "grpo-trainer"
-      component = "model-training"
-    }
+    name = "fsx-training-pv"
   }
 
   spec {
-    backoff_limit = 3
+    capacity = {
+      storage = "${var.fsx_storage_capacity_gb}Gi"
+    }
 
-    template {
-      metadata {
-        labels = {
-          app       = "grpo-trainer"
-          component = "model-training"
+    volume_mode                      = "Filesystem"
+    access_modes                     = ["ReadWriteMany"]
+    persistent_volume_reclaim_policy = "Retain"
+    storage_class_name               = kubernetes_storage_class.fsx_lustre.metadata[0].name
+
+    persistent_volume_source {
+      csi {
+        driver        = "fsx.csi.aws.com"
+        volume_handle = aws_fsx_lustre_file_system.training.id
+
+        volume_attributes = {
+          "dnsname"   = aws_fsx_lustre_file_system.training.dns_name
+          "mountname" = aws_fsx_lustre_file_system.training.mount_name
         }
-      }
-
-      spec {
-        node_selector = {
-          "node-type" = "gpu"
-        }
-
-        service_account_name = kubernetes_service_account.grpo_trainer.metadata[0].name
-        restart_policy       = "OnFailure"
-
-        container {
-          name  = "trainer"
-          image = "${aws_ecr_repository.trainer.repository_url}:latest"
-
-          resources {
-            requests = {
-              cpu               = "32"
-              memory            = "256Gi"
-              "nvidia.com/gpu"  = "8"
-            }
-            limits = {
-              cpu               = "96"
-              memory            = "384Gi"
-              "nvidia.com/gpu"  = "8"
-            }
-          }
-
-          env {
-            name = "MODEL_NAME"
-            value_from {
-              config_map_key_ref {
-                name = kubernetes_config_map.training_config.metadata[0].name
-                key  = "model_name"
-              }
-            }
-          }
-
-          env {
-            name  = "ENVIRONMENT_SERVICE_URL"
-            value = "http://environment-service:8080"
-          }
-
-          env {
-            name  = "CHECKPOINT_DIR"
-            value = "s3://${aws_s3_bucket.checkpoints.id}/checkpoints"
-          }
-
-          env {
-            name = "BATCH_SIZE"
-            value_from {
-              config_map_key_ref {
-                name = kubernetes_config_map.training_config.metadata[0].name
-                key  = "batch_size"
-              }
-            }
-          }
-
-          env {
-            name = "NUM_EPOCHS"
-            value_from {
-              config_map_key_ref {
-                name = kubernetes_config_map.training_config.metadata[0].name
-                key  = "num_epochs"
-              }
-            }
-          }
-
-          env {
-            name = "GROUP_SIZE"
-            value_from {
-              config_map_key_ref {
-                name = kubernetes_config_map.training_config.metadata[0].name
-                key  = "group_size"
-              }
-            }
-          }
-
-          env {
-            name = "LEARNING_RATE"
-            value_from {
-              config_map_key_ref {
-                name = kubernetes_config_map.training_config.metadata[0].name
-                key  = "learning_rate"
-              }
-            }
-          }
-
-          env {
-            name = "KL_COEF"
-            value_from {
-              config_map_key_ref {
-                name = kubernetes_config_map.training_config.metadata[0].name
-                key  = "kl_coef"
-              }
-            }
-          }
-
-          env {
-            name = "CLIP_RANGE"
-            value_from {
-              config_map_key_ref {
-                name = kubernetes_config_map.training_config.metadata[0].name
-                key  = "clip_range"
-              }
-            }
-          }
-
-          env {
-            name  = "AWS_DEFAULT_REGION"
-            value = var.aws_region
-          }
-
-          volume_mount {
-            name       = "shm"
-            mount_path = "/dev/shm"
-          }
-        }
-
-        volume {
-          name = "shm"
-          empty_dir {
-            medium     = "Memory"
-            size_limit = "64Gi"
-          }
-        }
-
-        termination_grace_period_seconds = 300
       }
     }
   }
 
-  wait_for_completion = false
+  depends_on = [aws_eks_addon.fsx_csi_driver]
+}
 
-  depends_on = [
-    kubernetes_deployment.environment_service,
-    kubernetes_service.environment_service,
-    module.node_groups
-  ]
+# PVC for training checkpoints
+resource "kubernetes_persistent_volume_claim" "fsx_training" {
+  metadata {
+    name      = "fsx-training-checkpoints"
+    namespace = "default"
+  }
+
+  spec {
+    access_modes       = ["ReadWriteMany"]
+    storage_class_name = kubernetes_storage_class.fsx_lustre.metadata[0].name
+
+    resources {
+      requests = {
+        storage = "${var.fsx_storage_capacity_gb}Gi"
+      }
+    }
+
+    volume_name = kubernetes_persistent_volume.fsx_training.metadata[0].name
+  }
 }
 
 # EBS CSI Driver IAM Role (IRSA)
@@ -709,6 +570,77 @@ resource "kubernetes_daemonset" "nvidia_device_plugin" {
             name  = "FAIL_ON_INIT_ERROR"
             value = "false"
           }
+
+          security_context {
+            allow_privilege_escalation = false
+            capabilities {
+              drop = ["ALL"]
+            }
+          }
+
+          volume_mount {
+            name       = "device-plugin"
+            mount_path = "/var/lib/kubelet/device-plugins"
+          }
+        }
+
+        volume {
+          name = "device-plugin"
+          host_path {
+            path = "/var/lib/kubelet/device-plugins"
+          }
+        }
+      }
+    }
+
+    strategy {
+      type = "RollingUpdate"
+    }
+  }
+
+  depends_on = [module.node_groups]
+}
+
+# AWS EFA Device Plugin DaemonSet
+resource "kubernetes_daemonset" "efa_device_plugin" {
+  count = var.efa_enabled ? 1 : 0
+
+  metadata {
+    name      = "aws-efa-k8s-device-plugin-daemonset"
+    namespace = "kube-system"
+  }
+
+  spec {
+    selector {
+      match_labels = {
+        name = "aws-efa-k8s-device-plugin"
+      }
+    }
+
+    template {
+      metadata {
+        labels = {
+          name = "aws-efa-k8s-device-plugin"
+        }
+      }
+
+      spec {
+        priority_class_name = "system-node-critical"
+        host_network        = true
+
+        toleration {
+          key      = "nvidia.com/gpu"
+          operator = "Exists"
+          effect   = "NoSchedule"
+        }
+
+        node_selector = {
+          "node-type" = "gpu"
+        }
+
+        container {
+          name  = "aws-efa-k8s-device-plugin"
+          image = "602401143452.dkr.ecr.us-east-1.amazonaws.com/eks/aws-efa-k8s-device-plugin:v0.5.7"
 
           security_context {
             allow_privilege_escalation = false
@@ -1051,6 +983,18 @@ resource "kubernetes_daemonset" "fluent_bit" {
       }
     }
   }
+
+  depends_on = [module.node_groups]
+}
+
+# --- KubeRay Operator ---
+resource "helm_release" "kuberay_operator" {
+  name             = "kuberay-operator"
+  repository       = "https://ray-project.github.io/kuberay-helm/"
+  chart            = "kuberay-operator"
+  version          = "1.3.0"
+  namespace        = "kuberay-system"
+  create_namespace = true
 
   depends_on = [module.node_groups]
 }

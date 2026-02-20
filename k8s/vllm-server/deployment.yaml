@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-server
+  labels:
+    app: vllm-server
+    component: inference
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vllm-server
+  template:
+    metadata:
+      labels:
+        app: vllm-server
+        component: inference
+    spec:
+      nodeSelector:
+        node-type: gpu
+      serviceAccountName: grpo-trainer-sa
+      containers:
+      - name: vllm
+        image: ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/rl-code-llm-training-dev/vllm-server:latest
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+        resources:
+          requests:
+            cpu: "4"
+            memory: "32Gi"
+            nvidia.com/gpu: "1"
+          limits:
+            cpu: "8"
+            memory: "48Gi"
+            nvidia.com/gpu: "1"
+        env:
+        - name: MODEL_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: training-config
+              key: model_name
+        - name: VLLM_SERVER_PORT
+          value: "8000"
+        - name: VLLM_USE_V1
+          value: "0"
+        - name: VLLM_ATTENTION_BACKEND
+          value: "XFORMERS"
+        - name: VLLM_ALLOW_INSECURE_SERIALIZATION
+          value: "1"
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 120
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        volumeMounts:
+        - name: shm
+          mountPath: /dev/shm
+      volumes:
+      - name: shm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 16Gi
+      terminationGracePeriodSeconds: 30

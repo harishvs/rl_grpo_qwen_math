@@ -87,3 +87,19 @@ output "build_environment_image" {
   description = "Command to build and push environment image"
   value       = "docker build -t ${aws_ecr_repository.environment.repository_url}:latest -f docker/environment/Dockerfile . && docker push ${aws_ecr_repository.environment.repository_url}:latest"
 }
+
+# FSx Lustre Outputs
+output "fsx_lustre_id" {
+  description = "ID of the FSx Lustre filesystem"
+  value       = aws_fsx_lustre_file_system.training.id
+}
+
+output "fsx_lustre_dns_name" {
+  description = "DNS name of the FSx Lustre filesystem"
+  value       = aws_fsx_lustre_file_system.training.dns_name
+}
+
+output "fsx_lustre_mount_name" {
+  description = "Mount name of the FSx Lustre filesystem"
+  value       = aws_fsx_lustre_file_system.training.mount_name
+}

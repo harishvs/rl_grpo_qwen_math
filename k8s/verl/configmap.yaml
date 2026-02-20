@@ -1,0 +1,93 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: verl-scripts
+data:
+  prep_data.py: |
+    """Prep GSM8K into verl parquet format."""
+    import os, re, datasets
+    def extract_solution(s):
+        m = re.search(r"#### (\-?[0-9\.\,]+)", s)
+        assert m is not None
+        return m.group(1).replace(",", "")
+    def make_map_fn(split):
+        def process_fn(example, idx):
+            q = example.pop("question")
+            a = example.pop("answer")
+            return {
+                "data_source": "openai/gsm8k",
+                "prompt": [{"role": "user", "content": q + ' Let\'s think step by step and output the final answer after "####".'}],
+                "ability": "math",
+                "reward_model": {"style": "rule", "ground_truth": extract_solution(a)},
+                "extra_info": {"split": split, "index": idx, "answer": a, "question": q},
+            }
+        return process_fn
+    ds = datasets.load_dataset("openai/gsm8k", "main")
+    os.makedirs("/data/gsm8k", exist_ok=True)
+    ds["train"].map(function=make_map_fn("train"), with_indices=True).to_parquet("/data/gsm8k/train.parquet")
+    ds["test"].map(function=make_map_fn("test"), with_indices=True).to_parquet("/data/gsm8k/test.parquet")
+    print("Data prep done")
+
+  reward.py: |
+    import re
+    def compute_score(data_source, solution_str, ground_truth, extra_info=None):
+        match = re.search(r"####\s*(\-?[0-9\.\,]+)", solution_str)
+        if match is None:
+            return 0.0
+        predicted = match.group(1).replace(",", "").strip()
+        gt = str(ground_truth).replace(",", "").strip()
+        try:
+            return 1.0 if float(predicted) == float(gt) else 0.0
+        except ValueError:
+            return 1.0 if predicted == gt else 0.0
+
+  run_grpo.sh: |
+    #!/bin/bash
+    set -ex
+    # Prep data
+    python3 /scripts/prep_data.py
+    # Download model
+    python3 -c "from transformers import AutoModelForCausalLM, AutoTokenizer; AutoTokenizer.from_pretrained('Qwen/Qwen2.5-1.5B'); AutoModelForCausalLM.from_pretrained('Qwen/Qwen2.5-1.5B')"
+    # Run GRPO
+    python3 -m verl.trainer.main_ppo \
+      algorithm.adv_estimator=grpo \
+      data.train_files=/data/gsm8k/train.parquet \
+      data.val_files=/data/gsm8k/test.parquet \
+      data.train_batch_size=256 \
+      data.max_prompt_length=512 \
+      data.max_response_length=1024 \
+      data.filter_overlong_prompts=True \
+      data.truncation=error \
+      actor_rollout_ref.model.path=Qwen/Qwen2.5-1.5B \
+      actor_rollout_ref.actor.optim.lr=5e-6 \
+      actor_rollout_ref.model.use_remove_padding=True \
+      actor_rollout_ref.actor.ppo_mini_batch_size=128 \
+      actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=16 \
+      actor_rollout_ref.actor.use_kl_loss=True \
+      actor_rollout_ref.actor.kl_loss_coef=0.1 \
+      actor_rollout_ref.actor.kl_loss_type=low_var_kl \
+      actor_rollout_ref.actor.clip_ratio=0.2 \
+      actor_rollout_ref.actor.entropy_coeff=0 \
+      actor_rollout_ref.model.enable_gradient_checkpointing=True \
+      actor_rollout_ref.actor.fsdp_config.param_offload=False \
+      actor_rollout_ref.actor.fsdp_config.optimizer_offload=False \
+      actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=32 \
+      actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
+      actor_rollout_ref.rollout.name=vllm \
+      actor_rollout_ref.rollout.gpu_memory_utilization=0.5 \
+      actor_rollout_ref.rollout.n=8 \
+      actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=32 \
+      actor_rollout_ref.ref.fsdp_config.param_offload=True \
+      algorithm.use_kl_in_reward=False \
+      custom_reward_function.path=/scripts/reward.py \
+      custom_reward_function.name=compute_score \
+      trainer.critic_warmup=0 \
+      trainer.logger='["console"]' \
+      trainer.project_name=grpo_gsm8k_qwen1.5b \
+      trainer.experiment_name=run_2026_02_19 \
+      trainer.n_gpus_per_node=8 \
+      trainer.nnodes=2 \
+      trainer.save_freq=20 \
+      trainer.test_freq=10 \
+      trainer.total_epochs=1 \
+      trainer.default_hdfs_dir=null

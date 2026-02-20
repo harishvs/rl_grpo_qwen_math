@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import os
 from contextlib import nullcontext
 from typing import List, Optional
 from dataclasses import dataclass
@@ -81,6 +82,9 @@ class GRPOTrainer:
         )
         self._env_client = EnvironmentClient(env_config)
         
+        # Initialize NCCL weight sync group to vLLM server (rank 0 only)
+        self._init_weight_sync_group()
+        
         logger.info("GRPO trainer setup complete")
     
     async def train_step(
@@ -97,9 +101,10 @@ class GRPOTrainer:
         """
         self._step_count += 1
         
-        # Sync generation model weights from FSDP actor (every step for on-policy)
+        # Sync generation model weights from FSDP actor (every 3 steps to reduce overhead)
         # This is a collective operation - all ranks must participate
-        self._sync_generation_model()
+        if self._step_count % 3 == 1 or self._step_count == 1:
+            self._sync_generation_model()
         
         # Format prompts
         prompts = [p.to_prompt() for p in problems]
@@ -135,30 +140,21 @@ class GRPOTrainer:
         # Compute GRPO advantages
         advantages = compute_grpo_advantages(rewards, self.config.group_size)
         
-        # Get old log probs from generation time (before model update)
-        # These were computed during rollout generation
-        old_log_probs = torch.stack([
-            r.log_probs.mean() if r.log_probs.numel() > 0 else torch.tensor(0.0)
+        # Get old log probs from generation time (per-token, before model update)
+        old_log_probs_per_token = [
+            r.log_probs.to(device).detach() if r.log_probs.numel() > 0
+            else torch.zeros(1, device=device)
             for r in rollouts
-        ]).to(device).detach()
-        
-        # Compute NEW actor log probs through the model (with gradients)
-        # This is different from old_log_probs because the model may have been updated
-        actor_log_probs = self._compute_log_probs(rollouts)
-        
-        # KL divergence between current policy and policy at generation time
-        # approx KL(π_new || π_old) ≈ E[log(π_new/π_old)] using sampled tokens
-        kl_div = (actor_log_probs - old_log_probs).mean().clamp(min=0)
+        ]
         
         # Ensure advantages are on the same device as actor
         advantages = advantages.to(device)
         
-        # Policy update with clipping
-        update_metrics = self._update_policy(
-            actor_log_probs=actor_log_probs,
-            old_log_probs=old_log_probs,
+        # Policy update with per-token clipping and gradient accumulation
+        update_metrics, kl_div = self._update_policy(
+            rollouts=rollouts,
+            old_log_probs_per_token=old_log_probs_per_token,
             advantages=advantages,
-            kl_div=kl_div,
         )
         
         # Checkpoint if needed
@@ -169,96 +165,143 @@ class GRPOTrainer:
         
         return TrainStepMetrics(
             policy_loss=update_metrics.loss,
-            kl_divergence=kl_div.item(),
+            kl_divergence=kl_div,
             mean_reward=rewards.mean().item(),
             clip_fraction=update_metrics.clip_fraction,
             advantages_mean=advantages.mean().item(),
             advantages_std=advantages.std().item(),
         )
     
-    def _compute_log_probs(self, rollouts: List[Rollout]) -> torch.Tensor:
-        """Compute log probabilities for rollouts using actor model."""
+    def _compute_log_probs(self, rollouts: List[Rollout]) -> List[torch.Tensor]:
+        """Compute per-token log probabilities for rollouts using actor model."""
         return self._actor.compute_log_probs(rollouts)
     
     def _update_policy(
         self,
-        actor_log_probs: torch.Tensor,
-        old_log_probs: torch.Tensor,
+        rollouts: List[Rollout],
+        old_log_probs_per_token: List[torch.Tensor],
         advantages: torch.Tensor,
-        kl_div: torch.Tensor,
-    ) -> PolicyUpdateMetrics:
-        """Apply GRPO policy update with clipping."""
+    ) -> tuple:
+        """Apply GRPO policy update with per-token clipping and gradient accumulation.
+        
+        Processes rollouts in micro-batches to balance memory and speed.
+        """
         self._optimizer.zero_grad()
+        device = advantages.device
+        n_rollouts = len(rollouts)
+        micro_batch_size = 4  # Process 4 rollouts at a time (batched forward pass)
         
-        # Compute ratio
-        ratio = torch.exp(actor_log_probs - old_log_probs)
+        total_loss_val = 0.0
+        total_kl_val = 0.0
+        all_ratios = []
+        n_valid = 0
         
-        # Clipped objective
-        clipped_ratio = torch.clamp(
-            ratio,
-            1.0 - self.config.clip_range,
-            1.0 + self.config.clip_range,
-        )
+        for mb_start in range(0, n_rollouts, micro_batch_size):
+            mb_end = min(mb_start + micro_batch_size, n_rollouts)
+            mb_rollouts = rollouts[mb_start:mb_end]
+            mb_old_lps = old_log_probs_per_token[mb_start:mb_end]
+            mb_advs = advantages[mb_start:mb_end]
+            
+            # Forward pass for micro-batch
+            mb_new_lps = self._actor.compute_log_probs(mb_rollouts)
+            
+            mb_losses = []
+            mb_kl_sum = 0.0
+            mb_valid = 0
+            
+            for j, (new_lp, old_lp) in enumerate(zip(mb_new_lps, mb_old_lps)):
+                min_len = min(len(new_lp), len(old_lp))
+                if min_len == 0:
+                    continue
+                
+                token_ratio = torch.exp(new_lp[:min_len] - old_lp[:min_len])
+                all_ratios.append(token_ratio.detach())
+                
+                kl_tokens = (token_ratio.detach() - 1) - torch.log(token_ratio.detach())
+                mb_kl_sum += kl_tokens.mean().item()
+                
+                adv = mb_advs[j]
+                clipped = torch.clamp(token_ratio, 1.0 - self.config.clip_range, 1.0 + self.config.clip_range)
+                token_loss = -torch.min(token_ratio * adv, clipped * adv)
+                mb_losses.append(token_loss.mean() + self.config.kl_coef * kl_tokens.mean())
+                mb_valid += 1
+            
+            if mb_losses:
+                mb_loss = torch.stack(mb_losses).mean() / (n_rollouts / len(mb_losses))
+                mb_loss.backward()
+                total_loss_val += sum(l.item() for l in mb_losses)
+                total_kl_val += mb_kl_sum
+                n_valid += mb_valid
         
-        # Policy loss (negative because we maximize)
-        policy_loss = -torch.min(
-            ratio * advantages,
-            clipped_ratio * advantages,
-        ).mean()
-        
-        # Add KL penalty
-        total_loss = policy_loss + self.config.kl_coef * kl_div
-        
-        # Backward pass
-        total_loss.backward()
-        
-        # Gradient clipping
         torch.nn.utils.clip_grad_norm_(
             self._actor.parameters(),
             self.config.max_grad_norm,
         )
-        
-        # Update
         self._optimizer.step()
         
-        # Compute metrics
-        clip_fraction = (
-            (ratio < 1.0 - self.config.clip_range) |
-            (ratio > 1.0 + self.config.clip_range)
-        ).float().mean().item()
+        avg_loss = total_loss_val / max(n_valid, 1)
+        avg_kl = total_kl_val / max(n_valid, 1)
         
-        approx_kl = (old_log_probs - actor_log_probs).mean().item()
+        if all_ratios:
+            all_r = torch.cat(all_ratios)
+            clip_fraction = (
+                (all_r < 1.0 - self.config.clip_range) |
+                (all_r > 1.0 + self.config.clip_range)
+            ).float().mean().item()
+        else:
+            clip_fraction = 0.0
         
         return PolicyUpdateMetrics(
-            loss=total_loss.item(),
+            loss=avg_loss,
             clip_fraction=clip_fraction,
-            approx_kl=approx_kl,
-        )
+            approx_kl=avg_kl,
+        ), avg_kl
     
+    def _init_weight_sync_group(self):
+        """No-op — weight sync uses HTTP POST to vLLM server."""
+        pass
+
     def _sync_generation_model(self):
-        """Sync weights from FSDP actor to generation model.
+        """Push weights from FSDP actor to vLLM server via HTTP.
         
-        This is a collective operation - all ranks must call this.
-        Only rank 0 actually copies the weights.
+        All ranks must call this (summon_full_params is collective).
+        Only rank 0 sends weights to vLLM server.
         """
         import torch.distributed as dist
         from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-        
+        import io
+        import requests
+
         is_fsdp = isinstance(self._actor._model, FSDP)
         is_distributed = self._world_size > 1 and dist.is_initialized()
-        
-        if is_fsdp and is_distributed:
-            # All ranks must participate in summon_full_params
-            with FSDP.summon_full_params(self._actor._model, writeback=False):
-                if self._rank == 0:
-                    # Copy weights to generation model
-                    actor_state = self._actor._model.state_dict()
-                    self._rollout_engine._model.load_state_dict(actor_state)
-        elif self._rank == 0 and self._rollout_engine._model is not None:
-            # Non-distributed case
-            self._rollout_engine._model.load_state_dict(
-                self._actor._model.state_dict()
-            )
+
+        if not (is_fsdp and is_distributed):
+            return
+
+        with FSDP.summon_full_params(self._actor._model, writeback=False):
+            if self._rank == 0:
+                try:
+                    import time as _t
+                    t0 = _t.time()
+                    state_dict = self._actor._model.state_dict()
+                    t1 = _t.time()
+                    buf = io.BytesIO()
+                    torch.save(state_dict, buf)
+                    data = buf.getvalue()
+                    t2 = _t.time()
+                    vllm_url = self._rollout_engine._vllm_url
+                    resp = requests.post(
+                        f"{vllm_url}/update_weights",
+                        data=data,
+                        headers={"Content-Type": "application/octet-stream"},
+                        timeout=120,
+                    )
+                    resp.raise_for_status()
+                    t3 = _t.time()
+                    result = resp.json()
+                    logger.info(f"Weight sync: state_dict={t1-t0:.1f}s serialize={t2-t1:.1f}s http={t3-t2:.1f}s server={result['duration_ms']:.0f}ms")
+                except Exception as e:
+                    logger.error(f"Weight sync failed: {e}")
     
     def save_checkpoint(self, path: str):
         """Save model checkpoint."""
@@ -356,65 +399,63 @@ class ActorModel:
         """Return model parameters for optimizer."""
         return self._model.parameters() if self._model else []
     
-    def compute_log_probs(self, rollouts: List[Rollout]) -> torch.Tensor:
-        """Compute log probabilities for given rollouts through the model.
+    def compute_log_probs(self, rollouts: List[Rollout]) -> List[torch.Tensor]:
+        """Compute per-token log probabilities for given rollouts (batched).
         
-        This recomputes log probs through the model to maintain gradient flow
-        for policy updates.
+        Returns a list of 1D tensors (one per rollout), each containing
+        per-token log probs with gradient flow for policy updates.
         """
         if not self._model or not self._tokenizer:
             raise RuntimeError("Model not initialized. Call setup() first.")
         
-        log_probs_list = []
         device = next(self._model.parameters()).device
         
-        for rollout in rollouts:
-            # Tokenize the full sequence (prompt + completion)
-            full_text = rollout.prompt + rollout.completion
-            inputs = self._tokenizer(
-                full_text,
-                return_tensors="pt",
-                truncation=True,
-                max_length=2048,
-            ).to(device)
+        # Tokenize all sequences and compute prompt lengths
+        full_texts = [r.prompt + r.completion for r in rollouts]
+        prompt_lens = []
+        for r in rollouts:
+            p = self._tokenizer(r.prompt, truncation=True, max_length=2048)
+            prompt_lens.append(len(p.input_ids))
+        
+        # Batch tokenize with padding
+        batch = self._tokenizer(
+            full_texts,
+            return_tensors="pt",
+            truncation=True,
+            max_length=2048,
+            padding=True,
+        ).to(device)
+        
+        # Single batched forward pass
+        outputs = self._model(**batch)
+        logits = outputs.logits  # (B, seq_len, vocab)
+        
+        # Extract per-rollout completion log probs
+        log_probs_list = []
+        input_ids = batch.input_ids  # (B, seq_len)
+        attention_mask = batch.attention_mask  # (B, seq_len)
+        
+        for i in range(len(rollouts)):
+            plen = prompt_lens[i]
+            # Find actual (non-pad) length for this sequence
+            seq_len = attention_mask[i].sum().item()
             
-            # Get prompt length for masking
-            prompt_inputs = self._tokenizer(
-                rollout.prompt,
-                return_tensors="pt",
-                truncation=True,
-                max_length=2048,
-            )
-            prompt_len = prompt_inputs.input_ids.shape[1]
+            if seq_len <= plen:
+                log_probs_list.append(torch.zeros(1, device=device, requires_grad=True))
+                continue
             
-            # Forward pass through model
-            outputs = self._model(**inputs)
-            logits = outputs.logits
+            shift_logits = logits[i, plen-1:seq_len-1, :]  # (comp_len, vocab)
+            shift_labels = input_ids[i, plen:seq_len]       # (comp_len,)
             
-            # Compute log probs for completion tokens only
-            # Shift logits and labels for next-token prediction
-            shift_logits = logits[:, prompt_len-1:-1, :]
-            shift_labels = inputs.input_ids[:, prompt_len:]
-            
-            # Compute log softmax
             log_softmax = F.log_softmax(shift_logits, dim=-1)
-            
-            # Gather log probs for actual tokens
             token_log_probs = log_softmax.gather(
                 dim=-1,
-                index=shift_labels.unsqueeze(-1)
-            ).squeeze(-1)
+                index=shift_labels.unsqueeze(-1),
+            ).squeeze(-1)  # (comp_len,)
             
-            # Mean log prob for this rollout
-            if token_log_probs.numel() > 0:
-                mean_log_prob = token_log_probs.mean()
-            else:
-                # Empty completion - use a small tensor with grad
-                mean_log_prob = torch.tensor(0.0, device=device, requires_grad=True)
-            
-            log_probs_list.append(mean_log_prob)
+            log_probs_list.append(token_log_probs)
         
-        return torch.stack(log_probs_list)
+        return log_probs_list
     
     def save(self, path: str):
         """Save unflattened FSDP checkpoint in standard HF format."""
@@ -428,7 +469,7 @@ class ActorModel:
             save_policy = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
             with FSDP.state_dict_type(self._model, StateDictType.FULL_STATE_DICT, save_policy):
                 state_dict = self._model.state_dict()
-                if self._local_rank == 0:
+                if self._rank == 0:
                     from transformers import AutoModelForCausalLM
                     dtype = torch.bfloat16 if self.fsdp_config.mixed_precision == "bf16" else torch.float32
                     ref = AutoModelForCausalLM.from_pretrained(self.model_path, torch_dtype=dtype)
@@ -494,11 +535,8 @@ class ReferenceModel:
         if not self.fsdp_config.cpu_offload and torch.cuda.is_available():
             self._model = self._model.cuda()
     
-    def compute_log_probs(self, rollouts: List[Rollout]) -> torch.Tensor:
-        """Compute reference log probabilities (no gradients).
-        
-        Computes log probs through the frozen reference model for KL divergence.
-        """
+    def compute_log_probs(self, rollouts: List[Rollout]) -> List[torch.Tensor]:
+        """Compute per-token reference log probabilities (no gradients)."""
         if not self._model or not self._tokenizer:
             raise RuntimeError("Reference model not initialized. Call setup() first.")
         
@@ -507,7 +545,6 @@ class ReferenceModel:
         
         with torch.no_grad():
             for rollout in rollouts:
-                # Tokenize the full sequence (prompt + completion)
                 full_text = rollout.prompt + rollout.completion
                 inputs = self._tokenizer(
                     full_text,
@@ -516,7 +553,6 @@ class ReferenceModel:
                     max_length=2048,
                 ).to(device)
                 
-                # Get prompt length for masking
                 prompt_inputs = self._tokenizer(
                     rollout.prompt,
                     return_tensors="pt",
@@ -525,39 +561,31 @@ class ReferenceModel:
                 )
                 prompt_len = prompt_inputs.input_ids.shape[1]
                 
-                # Forward pass through model
                 outputs = self._model(**inputs)
                 logits = outputs.logits
                 
-                # Compute log probs for completion tokens only
                 shift_logits = logits[:, prompt_len-1:-1, :]
                 shift_labels = inputs.input_ids[:, prompt_len:]
                 
-                # Compute log softmax
                 log_softmax = F.log_softmax(shift_logits, dim=-1)
-                
-                # Gather log probs for actual tokens
                 token_log_probs = log_softmax.gather(
                     dim=-1,
                     index=shift_labels.unsqueeze(-1)
-                ).squeeze(-1)
+                ).squeeze(-1).squeeze(0)
                 
-                # Mean log prob for this rollout
-                if token_log_probs.numel() > 0:
-                    mean_log_prob = token_log_probs.mean()
-                else:
-                    mean_log_prob = torch.tensor(0.0, device=device)
+                if token_log_probs.numel() == 0:
+                    token_log_probs = torch.zeros(1, device=device)
                 
-                log_probs_list.append(mean_log_prob)
+                log_probs_list.append(token_log_probs)
         
-        return torch.stack(log_probs_list)
+        return log_probs_list
 
 
 class RolloutEngine:
-    """Rollout generation using HuggingFace transformers.
+    """Rollout generation via remote vLLM server.
     
-    Uses a separate non-sharded model for generation to avoid FSDP complexity.
-    Only rank 0 loads the generation model and generates rollouts.
+    Sends HTTP requests to a separate vLLM pod for generation.
+    Only rank 0 calls the server, then broadcasts results to all ranks.
     """
     
     def __init__(
@@ -567,66 +595,30 @@ class RolloutEngine:
         max_tokens: int = 512,
     ):
         self.model_path = model_path
-        self.tensor_parallel_size = tensor_parallel_size
         self.max_tokens = max_tokens
-        self._model = None
         self._tokenizer = None
         self._rank = 0
         self._world_size = 1
+        self._vllm_url = os.environ.get("VLLM_SERVER_URL", "http://vllm-server:8000")
     
     def setup(self, rank: int = 0, world_size: int = 1):
-        """Initialize tokenizer and generation model (only on rank 0)."""
-        from transformers import AutoTokenizer, AutoModelForCausalLM
+        """Initialize tokenizer (all ranks) — no local generation model needed."""
+        from transformers import AutoTokenizer
         
         self._rank = rank
         self._world_size = world_size
         
-        logger.info(f"Setting up RolloutEngine with model: {self.model_path} (rank={rank})")
+        logger.info(f"Setting up RolloutEngine (HTTP client to {self._vllm_url}, rank={rank})")
         
         self._tokenizer = AutoTokenizer.from_pretrained(self.model_path)
         if self._tokenizer.pad_token is None:
             self._tokenizer.pad_token = self._tokenizer.eos_token
         
-        # Only rank 0 loads the generation model
-        if rank == 0:
-            logger.info("Loading separate generation model on rank 0")
-            self._model = AutoModelForCausalLM.from_pretrained(
-                self.model_path,
-                torch_dtype=torch.bfloat16,
-            )
-            if torch.cuda.is_available():
-                self._model = self._model.cuda()
-            self._model.eval()
-        
         logger.info("RolloutEngine setup complete")
     
     def sync_weights_from_actor(self, actor_model):
-        """Sync weights from the FSDP actor model to the generation model.
-        
-        This should be called periodically to keep generation model updated.
-        Only rank 0 needs to do this.
-        """
-        if self._rank != 0 or self._model is None:
-            return
-        
-        from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-        import torch.distributed as dist
-        
-        is_fsdp = isinstance(actor_model, FSDP)
-        is_distributed = self._world_size > 1 and dist.is_initialized()
-        
-        if is_fsdp and is_distributed:
-            # Use summon_full_params to get full state dict
-            # All ranks must participate in this collective operation
-            with FSDP.summon_full_params(actor_model, writeback=False):
-                if self._rank == 0:
-                    # Copy weights to generation model
-                    actor_state = actor_model.state_dict()
-                    self._model.load_state_dict(actor_state)
-                    logger.info("Synced weights from actor to generation model")
-        elif not is_fsdp:
-            # Non-FSDP case - direct copy
-            self._model.load_state_dict(actor_model.state_dict())
+        """No-op — weight sync handled by GRPOTrainer via NCCL."""
+        pass
     
     def generate_rollouts(
         self,
@@ -635,11 +627,12 @@ class RolloutEngine:
         temperature: float = 1.0,
         top_p: float = 1.0,
     ) -> List[Rollout]:
-        """Generate group_size rollouts per prompt.
+        """Generate rollouts via HTTP call to vLLM server.
         
-        Only rank 0 generates, then broadcasts results to all ranks.
+        Only rank 0 calls the server, then broadcasts results to all ranks.
         """
         import torch.distributed as dist
+        import requests
         
         if self._tokenizer is None:
             raise RuntimeError("RolloutEngine not initialized. Call setup() first.")
@@ -648,66 +641,39 @@ class RolloutEngine:
         
         rollouts = []
         
-        # Only rank 0 does actual generation
         if self._rank == 0:
-            if self._model is None:
-                raise RuntimeError("Generation model not loaded on rank 0")
+            import time as _time
+            for _attempt in range(30):
+                try:
+                    resp = requests.post(
+                        f"{self._vllm_url}/generate",
+                        json={
+                            "prompts": prompts,
+                            "group_size": group_size,
+                            "max_tokens": self.max_tokens,
+                            "temperature": temperature,
+                            "top_p": top_p,
+                        },
+                        timeout=300,
+                    )
+                    resp.raise_for_status()
+                    break
+                except (requests.ConnectionError, requests.Timeout) as e:
+                    logger.warning(f"vLLM server unavailable (attempt {_attempt+1}/30): {e}")
+                    _time.sleep(10)
+            else:
+                raise RuntimeError("vLLM server unreachable after 30 attempts")
+            data = resp.json()
             
-            device = next(self._model.parameters()).device
-            
-            for prompt in prompts:
-                # Tokenize prompt
-                prompt_inputs = self._tokenizer(
-                    prompt,
-                    return_tensors="pt",
-                    truncation=True,
-                    max_length=1536,
-                ).to(device)
-                prompt_len = prompt_inputs.input_ids.shape[1]
-                
-                # Generate group_size completions for this prompt
-                for _ in range(group_size):
-                    with torch.no_grad():
-                        outputs = self._model.generate(
-                            **prompt_inputs,
-                            max_new_tokens=self.max_tokens,
-                            temperature=temperature,
-                            top_p=top_p,
-                            do_sample=True,
-                            pad_token_id=self._tokenizer.pad_token_id,
-                            return_dict_in_generate=True,
-                            output_scores=True,
-                        )
-                        
-                        # Extract generated tokens
-                        generated_ids = outputs.sequences[0, prompt_len:]
-                        completion = self._tokenizer.decode(
-                            generated_ids,
-                            skip_special_tokens=True,
-                        )
-                        
-                        # Compute log probs from scores
-                        log_probs_list = []
-                        if outputs.scores and len(generated_ids) > 0:
-                            for i, score in enumerate(outputs.scores):
-                                if i < len(generated_ids):
-                                    log_softmax = F.log_softmax(score[0], dim=-1)
-                                    token_log_prob = log_softmax[generated_ids[i]]
-                                    log_probs_list.append(token_log_prob.cpu())
-                        
-                        if log_probs_list:
-                            log_probs = torch.stack(log_probs_list)
-                        else:
-                            log_probs = torch.zeros(1)
-                    
-                    rollouts.append(Rollout(
-                        prompt=prompt,
-                        completion=completion,
-                        log_probs=log_probs,
-                        tokens=generated_ids.tolist() if len(generated_ids) > 0 else [],
-                    ))
+            for c in data["completions"]:
+                log_probs = torch.tensor(c["log_probs"], dtype=torch.float32) if c["log_probs"] else torch.zeros(1)
+                rollouts.append(Rollout(
+                    prompt=c["prompt"],
+                    completion=c["completion"],
+                    log_probs=log_probs,
+                    tokens=c["token_ids"],
+                ))
         
-        # Broadcast rollouts from rank 0 to all other ranks
         if is_distributed:
             rollouts = self._broadcast_rollouts(rollouts, prompts, group_size)
         
@@ -723,9 +689,7 @@ class RolloutEngine:
         import torch.distributed as dist
         import pickle
         
-        # Serialize rollouts on rank 0
         if self._rank == 0:
-            # Convert to serializable format
             rollout_data = []
             for r in rollouts:
                 rollout_data.append({
@@ -739,11 +703,9 @@ class RolloutEngine:
         else:
             size_tensor = torch.tensor([0], dtype=torch.long, device='cuda')
         
-        # Broadcast size
         dist.broadcast(size_tensor, src=0)
         size = size_tensor.item()
         
-        # Broadcast data
         if self._rank == 0:
             data_tensor = torch.tensor(list(data_bytes), dtype=torch.uint8, device='cuda')
         else:
@@ -751,7 +713,6 @@ class RolloutEngine:
         
         dist.broadcast(data_tensor, src=0)
         
-        # Deserialize on non-rank-0
         if self._rank != 0:
             data_bytes = bytes(data_tensor.cpu().tolist())
             rollout_data = pickle.loads(data_bytes)

@@ -118,15 +118,12 @@ async def _compute_rewards_async(request: RewardRequest) -> RewardResponse:
         
         # Get detailed breakdown
         extracted = reward_worker.extract_answer(trajectory.completion)
-        format_score = reward_worker.check_format(trajectory.completion)
-        correctness_score = reward - format_score
-        
-        is_correct = correctness_score == 1.0
+        is_correct = reward == 1.0
         
         rewards.append(reward)
         details.append(RewardDetails(
-            correctness_score=correctness_score,
-            format_score=format_score,
+            correctness_score=reward,
+            format_score=0.0,
             extracted_answer=extracted,
             is_correct=is_correct,
         ))

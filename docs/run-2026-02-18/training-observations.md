@@ -7,36 +7,54 @@
 - batch_size=4, group_size=2, lr=1e-6, kl_coef=0.1, clip_range=0.2
 - 8x A10 GPUs, FSDP FULL_SHARD, bf16
 
-### Steps 1-570 (as of 2026-02-18 18:17 UTC)
+### Final Results — Steps 1-911+ (run completed ~2026-02-19 02:00 UTC)
 
-![Training Progress at step 517](training_progress_step517.png)
-![Training Progress at step 570](training_progress_step570.png)
+![Training Progress — Final](training_progress_final.png)
 
-**Reward — trending up:**
+**Run completed.** Pod terminated after finishing (or near-finishing) training. Last captured step was 911/934. Pod logs are no longer available — data below is from the last extraction at step 911. Checkpoints are on the EBS PVC (`grpo-checkpoints`).
+
+**Reward — +19pp improvement, plateaued at ~0.59:**
 | Steps | Avg Reward |
 |-------|-----------|
-| 1-100 | 0.4052 |
+| 1-100 | 0.4053 |
 | 101-200 | 0.4879 |
-| 201-300 | 0.4877 |
-| 301-400 | 0.5426 |
-| 401-500 | 0.5426 |
-| 501-570 | 0.5563 |
+| 201-400 | 0.5152 |
+| 401-600 | 0.5504 |
+| 601-800 | 0.5847 |
+| 801-911 | 0.5912 |
 
-Overall avg: 0.5010. The model is learning — reward improved from 0.40 to 0.56 over 570 steps.
+- Starting reward (first 20 steps): 0.4113
+- Final reward (last 20 steps): 0.6044
+- Improvement: +0.1931 (+19 percentage points)
+- Overall mean: 0.5324
 
-**Loss:** Oscillating near zero with three spikes:
-- Step 1: loss=24.55, kl=0.70
-- Step 46: loss=38.78, kl=0.76
-- Step 308: loss=343.18, kl=1.03
-- All recovered immediately on the next step. No new spikes since step 308.
+**Loss:** Oscillated near zero throughout. 3 early spikes (steps 1/46/308) — all self-recovered, none after.
 
-**KL:** Still 0.0000 for ~99% of steps. The clamp + small learning rate means the penalty is almost always zero. Model is learning via policy gradient alone.
+**KL:** 0.0000 for ~99% of steps. Clamped estimator was ineffective at lr=1e-6.
 
-**Why KL is zero:** The KL estimator computes `(actor_log_probs - old_log_probs).mean().clamp(min=0)`. With learning rate 1e-6 and gradient accumulation over 4 steps, each weight update is tiny — the model's token probabilities barely change between generation time and the policy update. The log prob difference is a very small number that's roughly equally likely to be slightly positive or slightly negative due to floating point noise. The clamp zeros out the negative half, and the positive half rounds to 0.0000. The result: KL penalty contributes nothing to the loss, and the model trains on policy gradient alone. A Schulman KL estimator `((ratio - 1) - log(ratio))` would fix this since it's always positive regardless of direction, but training is progressing without it.
+**Run duration:** ~22 hours on 1x g5.48xlarge (8x A10 GPUs).
 
-**Checkpoint:** Saves at step 50, 100, 150, ... all succeeding (unflattened FULL_STATE_DICT, 2.9GB each). Disk: 95GB available, ~55GB needed total.
+**Verdict:** The model learned — reward climbed steadily from 0.40 to 0.59. But it plateaued in the last ~100 steps, limited by conservative hyperparameters (lr=1e-6, group_size=2) and code issues (mean log probs, clamped KL, format reward bonus). All of these are fixed for the next run.
 
-**Status:** 55% complete, ~9 hours remaining. No crashes.
+### Post-Training Evaluation: GSM8K Test Set (100 problems)
+
+| Model | Score | Accuracy |
+|-------|-------|----------|
+| Base (Qwen2.5-1.5B) | 40/100 | 40.0% |
+| Trained (step 900) | 39/100 | 39.0% |
+| Difference | -1 | -1.0pp |
+
+**Training had zero measurable effect on test accuracy.** The -1pp difference is within noise.
+
+The reward improvement during training (0.40 → 0.59) did not generalize to the held-out test set. The model's policy barely moved from the base — confirmed by KL=0.0000 for 99% of steps.
+
+**Root causes (all fixed for next run):**
+1. **Mean log probs** — importance ratio was computing per-token geometric mean, not sequence probability ratio. Clipping operated on the wrong quantity.
+2. **Clamped KL = 0** — no regularization pressure. Schulman estimator will fix this.
+3. **lr=1e-6 too low** — combined with mean log probs, weight updates were negligible.
+4. **group_size=2** — advantage signal too noisy to learn generalizable patterns.
+
+This serves as a clean baseline for the next run on p4de.24xlarge.
 
 ### Analysis: Why reward improvement is slow
 
@@ -91,3 +109,41 @@ Reward went from 0.40 → 0.58 over 500+ steps — real progress but slow. Contr
 - Likely contributed to the loss spike at step 3 (`loss=70.7136, kl=0.8310`)
 
 **Fix:** Clamped KL to be non-negative: `(actor_log_probs - old_log_probs).mean().clamp(min=0)`. This ensures the penalty is always a penalty, never a reward. However, the clamp results in KL=0 most of the time at low learning rates — Schulman estimator would be a better long-term fix.
+
+---
+
+## Next Run: p4de.24xlarge Plan (same model: Qwen2.5-1.5B)
+
+### Hardware change
+- From: g5.48xlarge — 8x A10 24GB (192GB total)
+- To: p4de.24xlarge — 8x A100 80GB (640GB total)
+
+### Proposed config changes
+| Parameter | Current | Proposed | Reason |
+|---|---|---|---|
+| batch_size | 4 | 16 | 80GB per GPU gives ~3.3x headroom |
+| group_size | 2 | 8 | DeepSeek-R1 recommended, much cleaner advantage signal |
+| learning_rate | 1e-6 | 5e-6 | Current rate too conservative, no memory impact |
+| gradient_accumulation_steps | 4 | 1 | Batch 16 is large enough, no need to accumulate |
+| max_new_tokens | 512 | 1024 | Longer reasoning chains, more room to show work |
+| KL estimator | clamp | Schulman | Proper non-negative KL without clamping artifacts |
+
+### CloudWatch Embedded Metric Format (EMF) added
+Added EMF emission to `MetricsLogger.log_step()` in `src/trainer/metrics.py`. On next deploy, CloudWatch will automatically extract `Reward`, `PolicyLoss`, `KLDivergence`, and `ClipFraction` as graphable metrics under the `RLCodeLLMTraining` namespace. This enables native CloudWatch dashboards and alarms without needing metric filters or a CloudWatch agent.
+
+### Sequence-level log probs fix (mean → sum)
+Fixed `ActorModel.compute_log_probs()`, `ReferenceModel.compute_log_probs()`, and `old_log_probs` collection to use `torch.sum()` instead of `torch.mean()` over token log probs. Using mean was incorrectly length-normalizing the log probs, which meant the importance ratio `π_new/π_old` in the clipped objective was computing a per-token geometric mean ratio rather than the true sequence probability ratio. This caused short and long responses to contribute equally to gradients regardless of length, and made the PPO clipping operate on the wrong quantity. Identified by comparing against Raschka's MEAP book (section 6.8).
+
+### Schulman KL estimator
+Replaced `(new - old).mean().clamp(min=0)` with the Schulman estimator `((ratio - 1) - log(ratio)).mean()`. The old formula was zero on 97% of steps because the naive difference was slightly negative (policy barely changed at lr=1e-6) and the clamp zeroed it out. The Schulman estimator is mathematically guaranteed non-negative without clamping and will produce meaningful non-zero values even with small policy changes, giving the KL penalty actual teeth.
+
+### Binary reward function
+Changed `RewardWorker.compute_reward()` from `correctness_score + format_score` (range 0.0-1.2) to strictly binary 1.0/0.0. The old format_score (up to 0.2 for reasoning indicators and answer markers) muddied the GRPO advantage signal — a wrong answer with good formatting (0.2) could get positive advantage if the group mean was below 0.2. With binary rewards, advantages cleanly split into positive (correct) and negative (wrong). This matches the DeepSeek-R1 approach, which found that training only on final-answer correctness works better than rewarding intermediate steps.
+
+### Expected impact
+- 16 problems × 8 completions = 128 completions per step (vs 8 currently)
+- Total steps: ~234 (same data, bigger batches) vs 934 currently
+- Step time: ~40-50s (faster GPUs + potential batched generation)
+- Training time: ~3 hours vs ~20 hours
+- Cost: ~$120 vs ~$330 (faster finish offsets higher hourly rate)
+- Better advantage signal from group_size=8 should give faster, more stable reward improvement

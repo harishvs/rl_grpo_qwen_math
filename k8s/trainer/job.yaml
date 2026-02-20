@@ -1,5 +1,3 @@
-# GRPO Trainer Job
-# Runs on GPU nodes (g5.48xlarge) for model training
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -8,6 +6,9 @@ metadata:
     app: grpo-trainer
     component: model-training
 spec:
+  completionMode: Indexed
+  completions: 2
+  parallelism: 2
   backoffLimit: 3
   template:
     metadata:
@@ -19,22 +20,26 @@ spec:
         node-type: gpu
       serviceAccountName: grpo-trainer-sa
       restartPolicy: OnFailure
+      subdomain: grpo-trainer
       containers:
       - name: trainer
-        # Image URL is managed by Terraform via image-config ConfigMap
-        # Use: kubectl get configmap image-config -o jsonpath='{.data.trainer_image}'
-        # Or apply after running: terraform output trainer_ecr_repository_url
-        image: "ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/rl-code-llm-training-dev/trainer:latest"
+        image: ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/rl-code-llm-training-dev/trainer:latest
         resources:
           requests:
             cpu: "32"
             memory: "256Gi"
-            nvidia.com/gpu: "8"
+            nvidia.com/gpu: "7"
           limits:
             cpu: "96"
             memory: "384Gi"
-            nvidia.com/gpu: "8"
+            nvidia.com/gpu: "7"
         env:
+        - name: NNODES
+          value: "2"
+        - name: MASTER_ADDR
+          value: "grpo-trainer-0.grpo-trainer"
+        - name: MASTER_PORT
+          value: "29400"
         - name: MODEL_NAME
           valueFrom:
             configMapKeyRef:
@@ -86,6 +91,8 @@ spec:
               key: checkpoint_interval
         - name: AWS_DEFAULT_REGION
           value: "us-east-1"
+        - name: VLLM_SERVER_URL
+          value: "http://vllm-server:8000"
         volumeMounts:
         - name: shm
           mountPath: /dev/shm
@@ -97,6 +104,6 @@ spec:
           medium: Memory
           sizeLimit: 64Gi
       - name: checkpoints
-        persistentVolumeClaim:
-          claimName: grpo-checkpoints
+        emptyDir:
+          sizeLimit: 100Gi
       terminationGracePeriodSeconds: 300

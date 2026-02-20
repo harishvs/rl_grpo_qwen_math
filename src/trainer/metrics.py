@@ -93,6 +93,38 @@ class MetricsLogger:
         
         self._metrics_logger = metrics_logger
     
+    def _emit_emf(self, metrics: TrainingMetrics):
+        """Emit metrics in CloudWatch Embedded Metric Format.
+        
+        EMF logs are automatically parsed by CloudWatch into metrics
+        without needing a CloudWatch agent or metric filters.
+        """
+        emf = {
+            "_aws": {
+                "Timestamp": int(datetime.utcnow().timestamp() * 1000),
+                "CloudWatchMetrics": [{
+                    "Namespace": self.config.cloudwatch_namespace,
+                    "Dimensions": [["Environment", "Model"]],
+                    "Metrics": [
+                        {"Name": "Reward", "Unit": "None"},
+                        {"Name": "PolicyLoss", "Unit": "None"},
+                        {"Name": "KLDivergence", "Unit": "None"},
+                        {"Name": "ClipFraction", "Unit": "None"},
+                        {"Name": "Step", "Unit": "Count"},
+                    ],
+                }],
+            },
+            "Environment": self.config.environment,
+            "Model": self.config.model_name,
+            "Reward": metrics.mean_reward,
+            "PolicyLoss": metrics.policy_loss,
+            "KLDivergence": metrics.kl_divergence,
+            "ClipFraction": metrics.clip_fraction,
+            "Step": metrics.step,
+        }
+        # EMF must be a single line to stdout
+        print(json.dumps(emf), flush=True)
+
     def log_step(self, metrics: TrainingMetrics):
         """Log metrics for a training step.
         
@@ -124,6 +156,9 @@ class MetricsLogger:
         else:
             logger.info(f"Step {metrics.step}: loss={metrics.policy_loss:.4f}, "
                        f"reward={metrics.mean_reward:.4f}, kl={metrics.kl_divergence:.4f}")
+        
+        # Emit EMF for CloudWatch Metrics
+        self._emit_emf(metrics)
     
     def log_epoch_summary(
         self,

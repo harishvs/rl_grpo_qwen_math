@@ -98,45 +98,29 @@ variable "cpu_disk_size" {
   default     = 50
 }
 
-# Training Hyperparameters
-variable "model_name" {
-  description = "Name of the model to train"
+variable "capacity_reservation_id" {
+  description = "EC2 Capacity Block reservation ID for GPU nodes"
   type        = string
-  default     = "Qwen/Qwen2.5-1.5B"
+  default     = ""
 }
 
-variable "batch_size" {
-  description = "Training batch size"
-  type        = number
-  default     = 32
+variable "gpu_subnet_ids" {
+  description = "Subnet IDs for GPU node group (pin to specific AZ for capacity blocks)"
+  type        = list(string)
+  default     = []
 }
 
-variable "num_epochs" {
-  description = "Number of training epochs"
-  type        = number
-  default     = 3
+# EFA
+variable "efa_enabled" {
+  description = "Enable EFA network interfaces on GPU nodes"
+  type        = bool
+  default     = false
 }
 
-variable "group_size" {
-  description = "GRPO group size (rollouts per prompt)"
+# FSx for Lustre
+variable "fsx_storage_capacity_gb" {
+  description = "FSx Lustre storage capacity in GB (minimum 1200 for SCRATCH_2)"
   type        = number
-  default     = 8
+  default     = 1200
 }
 
-variable "learning_rate" {
-  description = "Learning rate for training"
-  type        = number
-  default     = 0.000001
-}
-
-variable "kl_coef" {
-  description = "KL divergence coefficient"
-  type        = number
-  default     = 0.1
-}
-
-variable "clip_range" {
-  description = "PPO clip range"
-  type        = number
-  default     = 0.2
-}

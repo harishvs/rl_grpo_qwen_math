@@ -153,9 +153,8 @@ class RewardWorker:
         """
         Compute reward for a single trajectory.
         
-        Reward = correctness_score + format_score
-        - correctness_score: 1.0 if final answer matches ground truth, 0.0 otherwise
-        - format_score: 0.0 to 0.2 based on format compliance
+        Binary reward: 1.0 if final answer matches ground truth, 0.0 otherwise.
+        Clean binary signal gives GRPO advantages a clear correct/incorrect split.
         
         Args:
             prompt: The math problem prompt (unused but kept for interface consistency)
@@ -163,20 +162,13 @@ class RewardWorker:
             ground_truth: Expected numeric answer
             
         Returns:
-            Total reward between 0.0 and 1.2
+            1.0 if correct, 0.0 otherwise
         """
-        # Compute correctness score
         extracted = self.extract_answer(completion)
         extracted_value = self._normalize_answer(extracted)
         ground_truth_value = self._normalize_answer(ground_truth)
         
         if extracted_value is not None and ground_truth_value is not None:
-            # Compare with tolerance for floating point
-            correctness_score = 1.0 if abs(extracted_value - ground_truth_value) < 1e-6 else 0.0
-        else:
-            correctness_score = 0.0
+            return 1.0 if abs(extracted_value - ground_truth_value) < 1e-6 else 0.0
         
-        # Compute format score
-        format_score = self.check_format(completion)
-        
-        return correctness_score + format_score
+        return 0.0

@@ -26,6 +26,7 @@ PROJECT_NAME="rl-code-llm-training-dev"
 # Image names
 ENVIRONMENT_IMAGE="${ECR_REGISTRY}/${PROJECT_NAME}/environment"
 TRAINER_IMAGE="${ECR_REGISTRY}/${PROJECT_NAME}/trainer"
+VLLM_SERVER_IMAGE="${ECR_REGISTRY}/${PROJECT_NAME}/vllm-server"
 
 # Script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -110,6 +111,19 @@ build_trainer() {
     echo -e "${GREEN}✓ Trainer image built and pushed: ${TRAINER_IMAGE}:latest${NC}"
 }
 
+build_vllm_server() {
+    echo -e "${YELLOW}Building vLLM server image for ${TARGET_PLATFORM}...${NC}"
+    
+    docker buildx build \
+        --platform ${TARGET_PLATFORM} \
+        -t "${VLLM_SERVER_IMAGE}:latest" \
+        -f "${PROJECT_ROOT}/docker/vllm-server/Dockerfile" \
+        --push \
+        "${PROJECT_ROOT}"
+    
+    echo -e "${GREEN}✓ vLLM server image built and pushed: ${VLLM_SERVER_IMAGE}:latest${NC}"
+}
+
 case ${BUILD_TARGET} in
     environment)
         build_environment
@@ -117,13 +131,17 @@ case ${BUILD_TARGET} in
     trainer)
         build_trainer
         ;;
+    vllm-server)
+        build_vllm_server
+        ;;
     all)
         build_environment
         build_trainer
+        build_vllm_server
         ;;
     *)
         echo -e "${RED}Unknown build target: ${BUILD_TARGET}${NC}"
-        echo "Usage: $0 [environment|trainer|all]"
+        echo "Usage: $0 [environment|trainer|vllm-server|all]"
         exit 1
         ;;
 esac
@@ -132,6 +150,7 @@ echo ""
 echo -e "${GREEN}=== Build Complete ===${NC}"
 echo -e "Environment Image: ${ENVIRONMENT_IMAGE}:latest"
 echo -e "Trainer Image:     ${TRAINER_IMAGE}:latest"
+echo -e "vLLM Server Image: ${VLLM_SERVER_IMAGE}:latest"
 echo ""
 echo -e "${YELLOW}Next steps:${NC}"
 echo -e "  1. Restart deployments: kubectl rollout restart deployment/environment-service"

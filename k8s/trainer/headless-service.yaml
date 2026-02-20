@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: grpo-trainer
+spec:
+  clusterIP: None
+  selector:
+    job-name: grpo-trainer
+  ports:
+  - name: rdzv
+    port: 29400
+    targetPort: 29400

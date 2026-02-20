@@ -1,5 +1,115 @@
 # Key Concepts
 
+## The Reinforcement Learning Loop
+
+RL is a framework where an **agent** learns by interacting with an **environment**. Unlike supervised learning where you have labeled examples, in RL the model discovers what's good through trial and error.
+
+**Core components:**
+
+```
+┌─────────┐   action (completion)   ┌─────────────┐
+│  Agent   │ ─────────────────────► │ Environment │
+│ (policy) │ ◄───────────────────── │  (scorer)   │
+└─────────┘   reward (0.0 or 1.0)   └─────────────┘
+```
+
+- **Agent / Policy (π)** — The language model. Given a prompt (state), it produces a completion (action). The policy is the probability distribution over tokens that the model uses to generate text.
+- **Environment** — Anything that evaluates the action and returns a reward. For us, it's the environment service that checks if the math answer is correct.
+- **State** — The input to the agent. In our case, the math problem prompt.
+- **Action** — The output from the agent. The full completion (reasoning chain + answer).
+- **Reward** — A scalar signal from the environment. 1.0 if correct, 0.0 if wrong.
+
+**The loop, step by step:**
+
+```
+1. Agent sees state         →  "Janet's ducks lay 16 eggs per day..."
+2. Agent takes action       →  "Step 1: 16 - 3 - 4 = 9 eggs... Answer: 18"
+3. Environment gives reward →  1.0 (correct!)
+4. Agent updates policy     →  Increase probability of similar reasoning
+5. Repeat from step 1 with new problem
+```
+
+**The goal:** Find a policy that maximizes expected reward over time. The agent doesn't memorize answers — it learns *how to reason* so it can solve new problems it hasn't seen.
+
+**Why RL instead of supervised fine-tuning?**
+
+In supervised fine-tuning (SFT), you need human-written solutions to train on. The model learns to imitate those specific solutions. In RL:
+- The model discovers its own reasoning strategies
+- It only needs a reward signal, not worked-out solutions
+- It can find approaches that humans wouldn't write
+- It optimizes for *correctness*, not for *similarity to a reference*
+
+The tradeoff: RL is noisier and harder to train. The reward signal is sparse (just a number), so the model needs many attempts to figure out what works. That's why techniques like GRPO (grouping multiple attempts and comparing them) help — they give the model a richer learning signal from each batch.
+
+**How our training loop maps to this:**
+
+| RL Concept | Our Implementation |
+|---|---|
+| Agent | Qwen2.5-1.5B (actor model, FSDP-sharded) |
+| Policy | The model's token probability distribution |
+| State | GSM8K math problem prompt |
+| Action | Generated completion (up to 512 tokens) |
+| Environment | Environment service at `http://environment-service:8080` |
+| Reward | 1.0 (correct answer) or 0.0 (wrong) |
+| Policy update | GRPO with clipped gradients + KL penalty |
+
+## GSM8K Dataset
+
+GSM8K (Grade School Math 8K) is a dataset of 8,792 grade-school-level math word problems created by OpenAI. It's the standard benchmark for testing whether RL training improves a model's math reasoning.
+
+**Structure:**
+- 7,473 training problems, 1,319 test problems
+- Each problem has a `question` (natural language word problem) and an `answer` (step-by-step solution ending with `#### <number>`)
+- Problems require 2-8 steps of basic arithmetic (addition, subtraction, multiplication, division)
+- No algebra, geometry, or advanced math — just multi-step reasoning with real-world scenarios
+
+**Example 1 — Simple (2 steps):**
+```
+Q: Natalia sold clips to 48 of her friends in April, and then she sold
+   half as many clips in May. How many clips did Natalia sell altogether
+   in April and May?
+
+A: Natalia sold 48/2 = 24 clips in May.
+   Natalia sold 48+24 = 72 clips altogether in April and May.
+   #### 72
+```
+
+**Example 2 — Medium (4 steps):**
+```
+Q: A craft store makes a third of its sales in the fabric section, a
+   quarter of its sales in the jewelry section, and the rest in the
+   stationery section. They made 36 sales today. How many sales were
+   in the stationery section?
+
+A: The craft store made 36 / 3 = 12 sales in the fabric section.
+   It made 36 / 4 = 9 sales in the jewelry section.
+   Thus, there were 36 - 12 - 9 = 15 sales in the stationery section.
+   #### 15
+```
+
+**Example 3 — Harder (5 steps):**
+```
+Q: A family of 12 monkeys collected 10 piles of bananas. 6 piles had
+   9 hands, with each hand having 14 bananas, while the remaining piles
+   had 12 hands, with each hand having 9 bananas. How many bananas would
+   each monkey get if they divide the bananas equally amongst themselves?
+
+A: The first 6 bunches had 6 x 9 x 14 = 756 bananas.
+   There were 10 - 6 = 4 remaining bunches.
+   The 4 remaining bunches had 4 x 12 x 9 = 432 bananas.
+   All together, there were 756 + 432 = 1188 bananas.
+   Each monkey would get 1188/12 = 99 bananas.
+   #### 99
+```
+
+**Why GSM8K for RL training:**
+- Problems are simple enough that a 1.5B model can sometimes get them right, giving a non-zero reward signal to learn from
+- But hard enough that the base model gets many wrong (~60-70% error rate), leaving room for improvement
+- Binary correctness is easy to verify — just check if the extracted number matches `#### <answer>`
+- Multi-step reasoning means the model must learn to chain operations, not just pattern-match
+
+**In our setup**, we use 3,736 training problems (half the training set) for faster iteration. The environment service extracts the final number from the model's completion and compares it to the ground truth answer.
+
 ## KL Divergence (Kullback-Leibler Divergence)
 
 KL divergence measures how much one probability distribution differs from another. In RL fine-tuning, it measures how far the policy has drifted from the original model.
@@ -29,13 +139,14 @@ total_loss = policy_loss + kl_coef * KL(π_new || π_old)
 - `kl_coef` too high → model barely changes, doesn't learn
 - Typical range: 0.01 - 0.2
 
-**In practice**, we approximate KL using only the sampled tokens rather than summing over the full vocabulary:
+**In practice**, we approximate KL using the Schulman estimator, which is always non-negative:
 
 ```python
-approx_kl = (actor_log_probs - old_log_probs).mean()
+ratio = exp(new_log_probs - old_log_probs)  # π_new / π_old
+approx_kl = ((ratio - 1) - log(ratio)).mean()
 ```
 
-This is a single-sample Monte Carlo estimate. It's noisy but unbiased over many steps.
+This works because `(x - 1) - log(x) ≥ 0` for all `x > 0`, with equality only at `x = 1` (identical distributions). Unlike the naive estimate `(new - old).mean()` which can go negative and accidentally reward divergence, the Schulman estimator is a proper non-negative KL approximation.
 
 ## GRPO (Group Relative Policy Optimization)
 

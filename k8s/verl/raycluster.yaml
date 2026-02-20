@@ -1,0 +1,103 @@
+apiVersion: ray.io/v1
+kind: RayCluster
+metadata:
+  name: verl-grpo
+spec:
+  rayVersion: '2.44.1'
+  headGroupSpec:
+    rayStartParams:
+      dashboard-host: '0.0.0.0'
+      num-gpus: '8'
+    template:
+      spec:
+        nodeSelector:
+          node.kubernetes.io/instance-type: p4d.24xlarge
+        containers:
+        - name: ray-head
+          image: hiyouga/verl:ngc-th2.6.0-cu126-vllm0.8.4-flashinfer0.2.2-cxx11abi0
+          resources:
+            limits:
+              nvidia.com/gpu: '8'
+              memory: 800Gi
+              cpu: '90'
+            requests:
+              nvidia.com/gpu: '8'
+              memory: 600Gi
+              cpu: '48'
+          env:
+          - name: NCCL_DEBUG
+            value: WARN
+          - name: HF_HOME
+            value: /tmp/hf_cache
+          volumeMounts:
+          - name: scripts
+            mountPath: /scripts
+          - name: dshm
+            mountPath: /dev/shm
+          - name: data
+            mountPath: /data
+        volumes:
+        - name: scripts
+          configMap:
+            name: verl-scripts
+            defaultMode: 0755
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 200Gi
+        - name: data
+          emptyDir: {}
+        tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+  workerGroupSpecs:
+  - replicas: 1
+    minReplicas: 1
+    maxReplicas: 1
+    groupName: gpu-workers
+    rayStartParams:
+      num-gpus: '8'
+    template:
+      spec:
+        nodeSelector:
+          node.kubernetes.io/instance-type: p4d.24xlarge
+        containers:
+        - name: ray-worker
+          image: hiyouga/verl:ngc-th2.6.0-cu126-vllm0.8.4-flashinfer0.2.2-cxx11abi0
+          resources:
+            limits:
+              nvidia.com/gpu: '8'
+              memory: 800Gi
+              cpu: '90'
+            requests:
+              nvidia.com/gpu: '8'
+              memory: 600Gi
+              cpu: '48'
+          env:
+          - name: NCCL_DEBUG
+            value: WARN
+          - name: HF_HOME
+            value: /tmp/hf_cache
+          volumeMounts:
+          - name: scripts
+            mountPath: /scripts
+          - name: dshm
+            mountPath: /dev/shm
+          - name: data
+            mountPath: /data
+        volumes:
+        - name: scripts
+          configMap:
+            name: verl-scripts
+            defaultMode: 0755
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 200Gi
+        - name: data
+          emptyDir: {}
+        tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule

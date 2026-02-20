@@ -22,7 +22,7 @@ output "cluster_certificate_authority" {
 
 output "cluster_security_group_id" {
   description = "Security group ID for the EKS cluster"
-  value       = aws_security_group.cluster.id
+  value       = aws_eks_cluster.main.vpc_config[0].cluster_security_group_id
 }
 
 output "cluster_iam_role_arn" {

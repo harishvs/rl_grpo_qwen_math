@@ -1,362 +1,313 @@
 # GRPO Training for Math Reasoning LLMs
 
-This project implements **Group Relative Policy Optimization (GRPO)** to train language models on mathematical reasoning tasks using reinforcement learning. It's based on the DeepSeek-R1 approach for training reasoning models.
+This project trains language models on mathematical reasoning (GSM8K) using **Group Relative Policy Optimization (GRPO)** — the RL algorithm from DeepSeek-R1. It contains two implementations:
+
+1. **Custom GRPO trainer** (`src/trainer/`) — hand-rolled training loop, useful for learning how GRPO works end-to-end
+2. **veRL-based trainer** (`k8s/verl/`) — production framework by ByteDance, 40x faster throughput
+
+Both run on EKS with multi-node GPU clusters.
+
+## Results
+
+Qwen2.5-1.5B trained on GSM8K (7,473 problems, 1 epoch) using veRL on 2x p4d.24xlarge (16x A100 40GB):
+
+| Metric | Value |
+|--------|-------|
+| Training time | 35 minutes |
+| Base model accuracy | 14.5% |
+| Trained model accuracy | **77.0%** |
+| Improvement | **+62.5%** |
 
 ## What is GRPO?
 
-GRPO is a reinforcement learning algorithm that improves upon PPO (Proximal Policy Optimization) for language model training:
+GRPO improves upon PPO for language model training:
 
 1. **Generate multiple responses** (a "group") for each math problem
-2. **Score each response** using an environment service that checks correctness
+2. **Score each response** using a reward function that checks correctness
 3. **Compute advantages** by comparing each response to the group average (no value network needed)
 4. **Update the policy** using clipped gradients to prevent too-large updates
 
-This is simpler than PPO because it doesn't require training a separate value/critic network.
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         EKS Cluster                                  │
-│                                                                      │
-│  ┌──────────────────────────────────────────────────────────────┐   │
-│  │                    GPU Node (g5.48xlarge)                     │   │
-│  │                         8x A10 GPUs                           │   │
-│  │                                                               │   │
-│  │  ┌─────────────────────────────────────────────────────────┐ │   │
-│  │  │              GRPO Trainer Job (torchrun 8 procs)         │ │   │
-│  │  │                                                          │ │   │
-│  │  │  ┌─────────────────────┐  ┌─────────────────────────┐   │ │   │
-│  │  │  │   Actor Model       │  │   Generation Model      │   │ │   │
-│  │  │  │   (FSDP sharded)    │  │   (rank 0 only)         │   │ │   │
-│  │  │  │                     │  │                         │   │ │   │
-│  │  │  │  - Policy training  │  │  - HuggingFace generate │   │ │   │
-│  │  │  │  - Gradient updates │  │  - Synced from actor    │   │ │   │
-│  │  │  │  - 8-way sharded    │  │  - Full model ~3GB      │   │ │   │
-│  │  │  └─────────────────────┘  └─────────────────────────┘   │ │   │
-│  │  │                                                          │ │   │
-│  │  └──────────────────────────┬───────────────────────────────┘ │   │
-│  │                             │                                  │   │
-│  └─────────────────────────────┼──────────────────────────────────┘   │
-│                                │                                      │
-│  ┌─────────────────────────────┼──────────────────────────────────┐   │
-│  │                    CPU Node │                                   │   │
-│  │                             ▼                                   │   │
-│  │  ┌─────────────────────────────────────────────────────────┐   │   │
-│  │  │              Environment Service                         │   │   │
-│  │  │                                                          │   │   │
-│  │  │  - Receives model completions                            │   │   │
-│  │  │  - Extracts final answers                                │   │   │
-│  │  │  - Compares to ground truth                              │   │   │
-│  │  │  - Returns reward (1.0 = correct, 0.0 = wrong)          │   │   │
-│  │  │                                                          │   │   │
-│  │  └─────────────────────────────────────────────────────────┘   │   │
-│  │                                                                 │   │
-│  └─────────────────────────────────────────────────────────────────┘   │
-│                                                                      │
-└─────────────────────────────────────────────────────────────────────┘
-```
+Simpler than PPO — no critic network to train.
 
 ## Training Loop
 
-Each training step:
-
 ```
-1. Sample batch of math problems from GSM8K dataset
-   └── "Janet's ducks lay 16 eggs per day..."
-
-2. Generate G completions per problem using vLLM (group_size=8)
-   └── 8 different reasoning chains for each problem
-
-3. Send completions to Environment Service for scoring
-   └── Returns rewards: [1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0]
-
-4. Compute GRPO advantages (group-normalized)
-   └── advantage = (reward - group_mean) / group_std
-   └── Good answers get positive advantage, bad ones negative
-
-5. Compute policy gradient with KL penalty
-   └── loss = -advantage * log_prob + kl_coef * KL(actor || reference)
-
-6. Update actor model weights
-   └── Gradient descent step with clipping
+1. Sample batch of math problems from GSM8K
+2. Generate G completions per problem (group_size=8)
+3. Score completions (binary: correct=1.0, wrong=0.0)
+4. Compute GRPO advantages: (reward - group_mean) / group_std
+5. Compute policy gradient with KL penalty against reference model
+6. Update actor model weights with clipped gradients
 ```
 
-## Components
+---
 
-### Trainer (`src/trainer/`)
+## Approach 1: Custom GRPO Trainer (from scratch)
 
-- **`trainer.py`** - Main GRPO training orchestration
-  - `GRPOTrainer` - Coordinates the training loop
-  - `ActorModel` - The policy being trained (Qwen2.5-1.5B), FSDP-sharded across 8 GPUs
-  - `RolloutEngine` - HuggingFace generate-based text generation (separate model on rank 0)
+A hand-rolled implementation to understand every piece of the GRPO pipeline. This was the first approach attempted and went through 5 iterations of debugging and optimization.
 
-- **`grpo.py`** - GRPO advantage computation
-  - Group-normalized advantages without value network
-
-- **`environment_client.py`** - HTTP client for reward service
-
-- **`main.py`** - Entry point, loads GSM8K dataset, distributed training setup
-
-### Environment Service (`src/environment/`)
-
-- FastAPI service that evaluates math answers
-- Extracts numerical answers from model completions
-- Compares to ground truth, returns binary reward
-
-## Key Files
+### Architecture
 
 ```
-src/
-├── trainer/
-│   ├── trainer.py      # GRPO training logic
-│   ├── grpo.py         # Advantage computation
-│   ├── config.py       # Training hyperparameters
-│   ├── main.py         # Entry point
-│   └── environment_client.py
-└── environment/
-    └── service.py      # Reward computation service
-
-k8s/
-├── trainer/
-│   ├── job.yaml        # GPU training job
-│   └── serviceaccount.yaml
-├── environment/
-│   └── deployment.yaml # Reward service deployment
-└── config/
-    └── training-config.yaml  # Hyperparameters
-
-docker/
-├── trainer/
-│   ├── Dockerfile
-│   └── requirements-trainer.txt
-└── environment/
-    └── Dockerfile
+┌──────────────────────────────────────────────────────────────┐
+│                       EKS Cluster                             │
+│                                                               │
+│  ┌─────────────────────────────────────────────────────────┐ │
+│  │  Trainer Job (torchrun, 16 GPUs across 2 nodes)         │ │
+│  │                                                          │ │
+│  │  Actor Model (FSDP-sharded)    Generation Model (rank 0) │ │
+│  │  - Policy training             - HuggingFace generate    │ │
+│  │  - Gradient updates            - Synced from actor       │ │
+│  │  - 16-way sharded              - Full model ~3GB         │ │
+│  └──────────────────────┬───────────────────────────────────┘ │
+│                         │                                     │
+│  ┌──────────────────────▼───────────────────────────────────┐ │
+│  │  Environment Service (CPU node)                           │ │
+│  │  - Evaluates math answers via FastAPI                     │ │
+│  │  - Returns binary reward                                  │ │
+│  └───────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-## Running Training
+### Components
 
-### Prerequisites
+- `src/trainer/trainer.py` — GRPO training loop, FSDP actor model, rollout engine
+- `src/trainer/grpo.py` — Group-normalized advantage computation
+- `src/trainer/main.py` — Entry point, dataset loading, distributed setup
+- `src/environment/service.py` — FastAPI reward service
 
-- EKS cluster with GPU nodes (g5.48xlarge recommended - 8x A10 GPUs, 24GB each)
-- ECR repositories for Docker images
-- Configured kubectl access
+### What We Learned (5 attempts)
 
-### Deploy
+**Attempt 1** — batch_size=8, OOM immediately. Rank 0 holds FSDP shard + full generation model.
+
+**Attempt 2** — batch_size=4, KL exploded to 194.8 on step 2. Root cause: computing importance ratio on sequence-level summed log probs. `exp(sum of 200 token shifts)` → exponential blowup.
+
+**Attempt 3** — Per-token importance ratio fix. KL stable at 0.0004–0.0009. But 5 min/step (sequential forward passes), 12 steps/hr. At 1,868 total steps, would take 156 hours.
+
+**Attempt 4** — Batched HF generate with `num_return_sequences`. 1.5 min/step, 40 steps/hr. 3x speedup. But still 47 hours for 1 epoch.
+
+**Attempt 5** — vLLM as separate server pod + HTTP weight sync. 63s/step, 57 steps/hr. Hit checkpoint save crash at step 50 (local_rank vs global rank bug). After batched log_probs optimization: 50s/step, 72 steps/hr. Still 26 hours for 1 epoch.
+
+### Key Bugs Fixed
+
+| Bug | Impact | Fix |
+|-----|--------|-----|
+| Sequence-level importance ratio | KL explosion (0.4 → 194.8 in 1 step) | Per-token ratio, then average |
+| `log_probs.mean()` | Wrong gradient signal | `log_probs.sum()` per sequence |
+| Checkpoint `local_rank == 0` | Crash on multi-node (rank 7 got empty dict) | `rank == 0` (global) |
+| vLLM inside torchrun | NCCL/CUDA deadlock | Separate vLLM server pod |
+| Sequential forward passes | 32 passes × 16-rank all-gather per step | Batched with padding |
+
+### Performance
+
+| Config | Step Time | Steps/hr | Time for 1 Epoch | Sequences/Step |
+|--------|-----------|----------|-------------------|----------------|
+| Sequential generate | 5 min | 12 | 156 hours | 32 |
+| Batched HF generate | 1.5 min | 40 | 47 hours | 32 |
+| vLLM server | 63s | 57 | 33 hours | 32 |
+| vLLM + batched log_probs | 50s | 72 | 26 hours | 32 |
+
+After 49 steps (before crash), reward was oscillating 0.31–0.56 with no clear upward trend. The small batch size (4 prompts × 8 completions = 32 sequences/step) meant high variance and slow learning.
+
+### Running the Custom Trainer
 
 ```bash
 # Build and push images
 ./scripts/build-and-push-images.sh all
 
-# Apply Kubernetes manifests
+# Deploy
 kubectl apply -f k8s/config/
 kubectl apply -f k8s/environment/
 kubectl apply -f k8s/trainer/
 
-# Monitor training
+# Monitor
 kubectl logs -f -l job-name=grpo-trainer
 ```
 
-### Configuration
+---
 
-Edit `k8s/config/training-config.yaml`:
+## Approach 2: veRL Framework (production)
 
-```yaml
-data:
-  model_name: "Qwen/Qwen2.5-1.5B"
-  batch_size: "4"         # See memory notes below
-  num_epochs: "1"
-  group_size: "2"         # Completions per problem
-  learning_rate: "1e-6"
-  kl_coef: "0.1"          # KL penalty weight
-  clip_range: "0.2"       # PPO-style clipping
-  max_samples: "3736"     # Half of GSM8K for faster iteration
+After spending ~12 hours debugging the custom trainer to reach 72 steps/hr with 32 sequences/step, we switched to [veRL](https://github.com/volcengine/verl) — a production RL post-training framework by ByteDance. The difference was dramatic.
+
+### Why veRL?
+
+The custom trainer had fundamental architectural limitations:
+
+| Problem | Custom Trainer | veRL |
+|---------|---------------|------|
+| Generation | Separate vLLM pod, HTTP weight sync (22s overhead) | Colocated vLLM on all GPUs, zero-copy weight resharding |
+| Batch size | 4 prompts/step (OOM with more) | 256 prompts/step (proper memory management) |
+| Sequences/step | 32 | 2,048 (64x more) |
+| Reference model | Skipped (used old log probs) | Full ref model with CPU offload |
+| Step time | 50s for 32 sequences | 70s for 2,048 sequences |
+| Effective throughput | 32 seq × 72 steps/hr = 2,304 seq/hr | 2,048 seq × 51 steps/hr = **104,448 seq/hr** |
+
+veRL processes **45x more data per unit time** than the custom trainer.
+
+### Architecture
+
+veRL uses a colocated architecture — every GPU runs all roles (actor, rollout, ref) by switching between phases:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  RayCluster on EKS (2x p4d.24xlarge, 16x A100 40GB)         │
+│                                                               │
+│  Each GPU runs a WorkerDict that cycles through:              │
+│                                                               │
+│  1. Generation (~19s)  — vLLM engine, 128 sequences/GPU      │
+│  2. Ref log probs (~5s) — FSDP ref model loaded from CPU     │
+│  3. Reward (~0.6s)     — CPU-side string matching             │
+│  4. Advantage (~0.05s) — GRPO group normalization             │
+│  5. Actor update (~39s) — FSDP training forward+backward      │
+│                                                               │
+│  Total: ~70s/step for 2,048 sequences                         │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-## Memory Management & OOM Issues
-
-Training GRPO with FSDP across 8 GPUs required careful memory tuning. Here's what we learned:
-
-### GPU Memory Layout (per A10 24GB)
-
-With our current setup, each GPU holds:
-- **FSDP-sharded actor model**: ~400MB per GPU (1.5B params / 8 GPUs, bf16)
-- **Generation model** (rank 0 only): ~3GB (full model for inference)
-- **Activations & gradients**: Variable based on batch size and sequence length
-
-### OOM Journey
-
-| Batch Size | Group Size | Result |
-|------------|------------|--------|
-| 32 | 8 | OOM immediately |
-| 8 | 4 | OOM during backward pass |
-| 8 | 2 | OOM during backward pass |
-| 4 | 2 | ✅ Works stable |
-| 2 | 2 | ✅ Works (slower) |
-
-### Why batch_size=4 is the sweet spot
-
-1. **Rank 0 has extra load**: It holds both the FSDP shard AND the full generation model (~3GB extra)
-2. **Gradient checkpointing helps but isn't enough**: We enable it, but large batches still OOM
-3. **Generation is memory-hungry**: Each completion stores scores for log prob computation
-4. **FSDP summon_full_params**: During weight sync, temporarily materializes full model
-
-### Memory Optimization Techniques Used
-
-```python
-# 1. Gradient checkpointing
-self._model.gradient_checkpointing_enable()
-
-# 2. bf16 mixed precision
-torch_dtype=torch.bfloat16
-
-# 3. FSDP with FULL_SHARD strategy
-sharding_strategy=ShardingStrategy.FULL_SHARD
-
-# 4. Separate generation model (avoids summon_full_params during generate)
-# Only rank 0 loads it, other ranks just receive broadcast rollouts
-
-# 5. No reference model - use old_log_probs from generation time instead
-```
-
-### If You Hit OOM
-
-1. Reduce `batch_size` first (most impact)
-2. Reduce `group_size` (fewer completions per problem)
-3. Reduce `max_new_tokens` (shorter generations)
-4. Try `SHARD_GRAD_OP` instead of `FULL_SHARD` (trades memory for communication)
-
-### Checkpointing
-
-Checkpoints are saved to a local EBS volume (`/checkpoints`) every 100 steps. On restart, training resumes from the latest checkpoint.
-
-> **TODO**: Migrate checkpoint storage to FSx for Lustre or S3 One Zone-IA for better durability and multi-node access.
-
-### Training Time Estimates
-
-With batch_size=4, group_size=2, 3736 samples, 1 epoch:
-- Steps: 934
-- Time per step: ~85 seconds
-- Total: ~22 hours on 8x A10 GPUs
-
-## Why This Architecture?
-
-1. **Separate Environment Service**: Decouples reward computation from training. Can scale independently, easier to test, and allows swapping reward functions.
-
-2. **FSDP for Distributed Training**: Shards model parameters across 8 GPUs, enabling training of larger models than would fit on a single GPU.
-
-3. **Separate Generation Model**: Avoids FSDP complexity during generation. Only rank 0 loads a full model copy for inference, then broadcasts rollouts to all ranks.
-
-4. **No Reference Model**: Instead of maintaining a frozen reference model for KL divergence, we use the log probs computed during generation as "old_log_probs". Saves ~3GB GPU memory.
-
-5. **GRPO over PPO**: No value network to train = simpler, fewer hyperparameters, works well for reasoning tasks.
-
-## Metrics
-
-Training logs show:
-- `loss` - Policy gradient loss + KL penalty
-- `reward` - Mean reward across batch (0-1 for binary)
-- `kl` - KL divergence from reference policy
-
-Good training shows:
-- Increasing mean reward over time
-- Stable/slowly increasing KL (not exploding)
-- Decreasing loss
-
-## How to Know if RL Training Worked
-
-### During Training: Watch the Metrics
+### Training Config
 
 ```bash
-kubectl logs -f -l job-name=grpo-trainer
+# Model
+model: Qwen/Qwen2.5-1.5B
+
+# Data
+train_batch_size: 256        # prompts per step
+rollout.n: 8                 # completions per prompt (256 × 8 = 2,048 sequences/step)
+
+# Optimization
+lr: 5e-6
+kl_loss_coef: 0.1
+clip_ratio: 0.2
+
+# Infrastructure
+n_gpus_per_node: 8
+nnodes: 2                   # 16 GPUs total
+rollout.gpu_memory_utilization: 0.5
+ref.fsdp_config.param_offload: True   # ref model on CPU
 ```
 
-Look for:
-```
-Step 1: loss=0.0012, reward=0.15, kl=-0.01
-Step 100: loss=-0.0023, reward=0.35, kl=0.02
-Step 500: loss=-0.0045, reward=0.52, kl=0.05
-```
+### Training Progression
 
-**Signs of successful training:**
-- `reward` trending upward (model getting more answers correct)
-- `loss` becoming more negative (policy improving)
-- `kl` staying small and stable (not diverging too far from initial policy)
+29 steps, 35 minutes, 1 full epoch:
 
-**Red flags:**
-- `reward` stuck at 0 or not improving → model not learning
-- `kl` exploding (>1.0) → policy diverging, reduce learning rate
-- `loss` = 0 constantly → gradient flow issue
+| Step | Reward | KL | Step Time |
+|------|--------|-----|-----------|
+| 0 (val) | 2.3% | — | — |
+| 1 | 1.1% | 0.0001 | 76s |
+| 3 | 10.3% | 0.0007 | 73s |
+| 14 | 59.8% | — | 69s |
+| 20 (val) | 72.3% | — | 69s |
+| 29 (val) | **72.7%** | — | 70s |
 
-### After Training: Evaluate on Test Set
+### Eval Results (200 GSM8K test problems, greedy decoding)
 
-The GSM8K dataset has a held-out test set (1,319 problems). Compare before/after:
+| Model | Accuracy |
+|-------|----------|
+| Base Qwen2.5-1.5B | 14.5% |
+| GRPO-trained (step 29) | **77.0%** |
 
-```python
-from transformers import AutoModelForCausalLM, AutoTokenizer
+### Running veRL
 
-# Load base model (before training)
-base_model = AutoModelForCausalLM.from_pretrained("Qwen/Qwen2.5-1.5B")
+```bash
+# Install KubeRay operator (managed via Terraform)
+# See terraform/environments/dev/main.tf
 
-# Load fine-tuned model (after training)
-trained_model = AutoModelForCausalLM.from_pretrained("/path/to/checkpoint/final")
+# Prep data + deploy
+kubectl apply -f k8s/verl/configmap.yaml
+kubectl apply -f k8s/verl/raycluster.yaml
 
-# Evaluate both on test set
-def evaluate_accuracy(model, tokenizer, test_problems):
-    correct = 0
-    for problem in test_problems:
-        prompt = problem.to_prompt()
-        output = model.generate(tokenizer(prompt, return_tensors="pt").input_ids, max_new_tokens=512)
-        completion = tokenizer.decode(output[0], skip_special_tokens=True)
-        
-        # Extract answer and compare to ground truth
-        predicted = extract_answer(completion)
-        if predicted == problem.answer:
-            correct += 1
-    
-    return correct / len(test_problems)
-
-base_accuracy = evaluate_accuracy(base_model, tokenizer, test_set)
-trained_accuracy = evaluate_accuracy(trained_model, tokenizer, test_set)
-
-print(f"Base model: {base_accuracy:.1%}")
-print(f"Trained model: {trained_accuracy:.1%}")
-print(f"Improvement: {trained_accuracy - base_accuracy:+.1%}")
+# Wait for pods, install veRL, launch training
+kubectl exec <head-pod> -- pip install verl==0.6.1
+kubectl exec <head-pod> -- python3 /scripts/prep_data.py
+kubectl exec <head-pod> -- bash /scripts/run_grpo.sh
 ```
 
-### Expected Results
+### Checkpoints
 
-For Qwen2.5-1.5B on GSM8K:
-- **Base model**: ~30-40% accuracy (varies by prompting)
-- **After GRPO training**: ~50-60% accuracy (with good hyperparameters)
-- **State-of-the-art**: ~90%+ (larger models, more training)
-
-### Quick Sanity Check
-
-Test a few problems manually:
-
-```python
-prompt = """Solve this math problem step by step:
-
-Janet's ducks lay 16 eggs per day. She eats three for breakfast every morning and bakes muffins for her friends every day with four. She sells the remainder at the farmers' market daily for $2 per fresh duck egg. How much in dollars does she make every day at the farmers' market?
-
-Answer:"""
-
-# Generate with trained model
-output = trained_model.generate(...)
-print(output)
-# Should show step-by-step reasoning ending with "18" (correct answer)
+Saved to S3 (pods have no IRSA, streamed via local pipe):
+```
+s3://rl-code-llm-training-dev-checkpoints/verl/run_2026_02_19/global_step_20.tar.gz
+s3://rl-code-llm-training-dev-checkpoints/verl/run_2026_02_19/global_step_29.tar.gz
 ```
 
-If the trained model:
-1. Shows clearer step-by-step reasoning
-2. Gets more answers correct
-3. Makes fewer arithmetic errors
+Checkpoints are FSDP-sharded (16 rank files as DTensors). To reconstruct a HuggingFace model, load all 16 `model_world_size_16_rank_*.pt` files and concatenate along `Shard(dim=0)`.
 
-Then RL training worked!
+---
+
+## Side-by-Side Comparison
+
+| | Custom Trainer | veRL |
+|---|---|---|
+| Lines of training code | ~800 (trainer.py + grpo.py) | ~50 (config + reward function) |
+| Debug iterations | 5 attempts over 12 hours | Worked on first try |
+| Sequences per step | 32 | 2,048 |
+| Step time | 50s | 70s |
+| Effective throughput | 2,304 seq/hr | 104,448 seq/hr |
+| Time for 1 epoch (GSM8K) | ~26 hours | **35 minutes** |
+| Final reward after 1 epoch | N/A (didn't finish) | 72.7% |
+| Weight sync overhead | 22s HTTP transfer every 3 steps | 0s (colocated) |
+| Reference model | Skipped | Full, CPU-offloaded |
+| Generation engine | vLLM (separate pod) | vLLM (colocated, all GPUs) |
+
+The custom trainer was valuable for understanding GRPO internals — per-token importance ratios, KL estimation, FSDP weight management, vLLM integration challenges. But for actual training, veRL is the right tool.
+
+## Infrastructure
+
+```
+EKS Cluster: rl-code-llm-training-dev (us-east-1, EKS 1.29)
+GPU Nodes:   2x p4d.24xlarge (8x A100 40GB each)
+CPU Nodes:   2x AL2023_x86_64_STANDARD
+KubeRay:     v1.3.0 (Terraform-managed)
+FSx Lustre:  1.2TB SCRATCH_2, version 2.15
+Storage:     S3 for checkpoints
+```
+
+All infrastructure managed via Terraform (`terraform/environments/dev/`).
+
+## Project Structure
+
+```
+src/
+├── trainer/                    # Custom GRPO trainer
+│   ├── trainer.py              # Training loop, FSDP actor, rollout engine
+│   ├── grpo.py                 # Advantage computation
+│   ├── config.py               # Hyperparameters
+│   ├── main.py                 # Entry point
+│   └── environment_client.py   # HTTP client for reward service
+└── environment/
+    └── service.py              # FastAPI reward service
+
+k8s/
+├── verl/                       # veRL deployment (recommended)
+│   ├── raycluster.yaml         # RayCluster for 2x p4d.24xlarge
+│   └── configmap.yaml          # Data prep, reward function, training script
+├── trainer/                    # Custom trainer deployment
+│   ├── job.yaml
+│   └── serviceaccount.yaml
+├── environment/
+│   └── deployment.yaml
+└── config/
+    └── training-config.yaml
+
+verl-config/                    # Local copies of veRL scripts
+├── prep_data.py                # GSM8K → parquet
+├── reward.py                   # Binary reward function
+└── run_grpo.sh                 # Training launch script
+
+terraform/                      # All infrastructure
+├── environments/dev/
+│   └── main.tf                 # EKS, VPC, FSx, KubeRay, IAM
+└── modules/
+
+docs/
+└── run-2026-02-19/
+    └── training-observations.md  # Detailed logs of all 5 custom trainer attempts
+```
 
 ## References
 
-- [DeepSeek-R1 Paper](https://arxiv.org/abs/2401.02954) - GRPO algorithm
-- [GSM8K Dataset](https://github.com/openai/grade-school-math) - Math problems
-- [vLLM](https://github.com/vllm-project/vllm) - Fast inference engine
+- [DeepSeek-R1 Paper](https://arxiv.org/abs/2401.02954) — GRPO algorithm
+- [veRL](https://github.com/volcengine/verl) — Production RL post-training framework
+- [GSM8K Dataset](https://github.com/openai/grade-school-math) — Math problems
+- [vLLM](https://github.com/vllm-project/vllm) — Fast inference engine
