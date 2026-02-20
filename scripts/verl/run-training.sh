@@ -86,10 +86,14 @@ RAY_NODES=$(kubectl exec "$HEAD_POD" -- ray status 2>/dev/null | grep -c "node_"
 echo "Ray nodes detected: $RAY_NODES"
 echo ""
 
-# Install veRL
-echo -e "${YELLOW}Installing veRL...${NC}"
+# Install veRL on all pods
+echo -e "${YELLOW}Installing veRL on all pods...${NC}"
 kubectl exec "$HEAD_POD" -- pip install verl==0.6.1 2>&1 | tail -1
-echo -e "${GREEN}✓ veRL installed${NC}"
+WORKER_POD=$(kubectl get pods -l ray.io/cluster=verl-grpo,ray.io/node-type=worker -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+if [[ -n "$WORKER_POD" ]]; then
+    kubectl exec "$WORKER_POD" -- pip install verl==0.6.1 2>&1 | tail -1
+fi
+echo -e "${GREEN}✓ veRL installed on all nodes${NC}"
 echo ""
 
 # If model is not default, patch the run script
