@@ -1,7 +1,7 @@
 """GRPO trainer module for RL-based LLM training."""
 
-from src.trainer.config import TrainingConfig, FSDPConfig, RetryConfig
-from src.trainer.models import (
+from src.custom.trainer.config import TrainingConfig, FSDPConfig, RetryConfig
+from src.custom.trainer.models import (
     Rollout,
     Trajectory,
     RewardRequest,
@@ -9,10 +9,10 @@ from src.trainer.models import (
     TrainStepMetrics,
     PolicyUpdateMetrics,
 )
-from src.trainer.grpo import compute_grpo_advantages, compute_grpo_advantages_from_list
-from src.trainer.dataset import MathProblem, MathProblemDataset
-from src.trainer.environment_client import EnvironmentClient, EnvironmentClientConfig
-from src.trainer.trainer import GRPOTrainer
+from src.custom.trainer.grpo import compute_grpo_advantages, compute_grpo_advantages_from_list
+from src.custom.trainer.dataset import MathProblem, MathProblemDataset
+from src.custom.trainer.environment_client import EnvironmentClient, EnvironmentClientConfig
+from src.custom.trainer.trainer import GRPOTrainer
 
 __all__ = [
     "TrainingConfig",

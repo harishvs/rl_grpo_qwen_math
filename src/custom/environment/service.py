@@ -12,13 +12,13 @@ from typing import AsyncGenerator
 from fastapi import FastAPI, HTTPException, status
 from fastapi.responses import JSONResponse
 
-from src.environment.models import (
+from src.custom.environment.models import (
     HealthResponse,
     RewardDetails,
     RewardRequest,
     RewardResponse,
 )
-from src.environment.reward import RewardWorker
+from src.custom.environment.reward import RewardWorker
 
 
 # Service configuration

@@ -7,8 +7,8 @@ from dataclasses import dataclass
 
 import aiohttp
 
-from src.trainer.config import RetryConfig
-from src.trainer.models import Trajectory, RewardDetails, RewardResponse
+from src.custom.trainer.config import RetryConfig
+from src.custom.trainer.models import Trajectory, RewardDetails, RewardResponse
 
 
 logger = logging.getLogger(__name__)

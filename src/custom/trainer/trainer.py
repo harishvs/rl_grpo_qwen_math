@@ -10,16 +10,16 @@ from dataclasses import dataclass
 import torch
 import torch.nn.functional as F
 
-from src.trainer.config import TrainingConfig, FSDPConfig
-from src.trainer.models import (
+from src.custom.trainer.config import TrainingConfig, FSDPConfig
+from src.custom.trainer.models import (
     Rollout,
     Trajectory,
     TrainStepMetrics,
     PolicyUpdateMetrics,
 )
-from src.trainer.grpo import compute_grpo_advantages
-from src.trainer.environment_client import EnvironmentClient, EnvironmentClientConfig
-from src.trainer.dataset import MathProblem
+from src.custom.trainer.grpo import compute_grpo_advantages
+from src.custom.trainer.environment_client import EnvironmentClient, EnvironmentClientConfig
+from src.custom.trainer.dataset import MathProblem
 
 
 logger = logging.getLogger(__name__)

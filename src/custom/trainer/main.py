@@ -14,9 +14,9 @@ from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp import ShardingStrategy, MixedPrecision
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 
-from src.trainer.config import TrainingConfig, FSDPConfig
-from src.trainer.trainer import GRPOTrainer
-from src.trainer.dataset import MathProblemDataset
+from src.custom.trainer.config import TrainingConfig, FSDPConfig
+from src.custom.trainer.trainer import GRPOTrainer
+from src.custom.trainer.dataset import MathProblemDataset
 
 
 logging.basicConfig(

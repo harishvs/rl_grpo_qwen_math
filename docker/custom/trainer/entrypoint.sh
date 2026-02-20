@@ -44,14 +44,14 @@ except:
         --master_port=${MASTER_PORT:-29400} \
         --tee=3 \
         --local_ranks_filter=0 \
-        -m src.trainer.main "$@"
+        -m src.custom.trainer.main "$@"
 elif [ "$NUM_GPUS" -gt 1 ]; then
     echo "Starting distributed training with torchrun on $NUM_GPUS GPUs"
     exec torchrun \
         --standalone \
         --nproc_per_node=$NUM_GPUS \
-        -m src.trainer.main "$@"
+        -m src.custom.trainer.main "$@"
 else
     echo "Starting single GPU training"
-    exec python -m src.trainer.main "$@"
+    exec python -m src.custom.trainer.main "$@"
 fi
