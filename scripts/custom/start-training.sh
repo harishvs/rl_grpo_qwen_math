@@ -63,7 +63,7 @@ echo ""
 
 # Start the new job
 echo -e "${YELLOW}Starting training job...${NC}"
-kubectl apply -f "${PROJECT_ROOT}/k8s/trainer/job.yaml"
+kubectl apply -f "${PROJECT_ROOT}/k8s/custom/trainer/job.yaml"
 echo -e "${GREEN}✓ Job created${NC}"
 echo ""
 

@@ -34,7 +34,7 @@ docker buildx build \
     --platform linux/amd64 \
     --push \
     -t ${ECR_BASE}/${ENV_REPO}:latest \
-    -f docker/environment/Dockerfile \
+    -f docker/custom/environment/Dockerfile \
     .
 
 echo -e "${GREEN}✓ Environment image pushed: ${ECR_BASE}/${ENV_REPO}:latest${NC}"
@@ -45,7 +45,7 @@ docker buildx build \
     --platform linux/amd64 \
     --push \
     -t ${ECR_BASE}/${TRAINER_REPO}:latest \
-    -f docker/trainer/Dockerfile \
+    -f docker/custom/trainer/Dockerfile \
     .
 
 echo -e "${GREEN}✓ Trainer image pushed: ${ECR_BASE}/${TRAINER_REPO}:latest${NC}"

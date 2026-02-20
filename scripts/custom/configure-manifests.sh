@@ -40,7 +40,7 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 echo -e "\n${YELLOW}Updating manifests...${NC}"
 
 # Update serviceaccount.yaml
-SA_FILE="${PROJECT_ROOT}/k8s/trainer/serviceaccount.yaml"
+SA_FILE="${PROJECT_ROOT}/k8s/custom/trainer/serviceaccount.yaml"
 if [ -f "$SA_FILE" ]; then
     sed -i.bak "s/ACCOUNT_ID/${AWS_ACCOUNT_ID}/g" "$SA_FILE"
     rm -f "${SA_FILE}.bak"
@@ -50,7 +50,7 @@ else
 fi
 
 # Update secrets.yaml
-SECRETS_FILE="${PROJECT_ROOT}/k8s/config/secrets.yaml"
+SECRETS_FILE="${PROJECT_ROOT}/k8s/custom/config/secrets.yaml"
 if [ -f "$SECRETS_FILE" ]; then
     sed -i.bak "s/your-checkpoint-bucket-name/${S3_BUCKET}/g" "$SECRETS_FILE"
     rm -f "${SECRETS_FILE}.bak"
@@ -60,7 +60,7 @@ else
 fi
 
 # Update job.yaml
-JOB_FILE="${PROJECT_ROOT}/k8s/trainer/job.yaml"
+JOB_FILE="${PROJECT_ROOT}/k8s/custom/trainer/job.yaml"
 if [ -f "$JOB_FILE" ]; then
     sed -i.bak "s|\${ECR_REPO}|${ECR_REPO}|g" "$JOB_FILE"
     rm -f "${JOB_FILE}.bak"
@@ -70,7 +70,7 @@ else
 fi
 
 # Update environment deployment.yaml
-ENV_DEPLOY_FILE="${PROJECT_ROOT}/k8s/environment/deployment.yaml"
+ENV_DEPLOY_FILE="${PROJECT_ROOT}/k8s/custom/environment/deployment.yaml"
 if [ -f "$ENV_DEPLOY_FILE" ]; then
     sed -i.bak "s|\${ECR_REPO}|${ECR_REPO}|g" "$ENV_DEPLOY_FILE"
     rm -f "${ENV_DEPLOY_FILE}.bak"

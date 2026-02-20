@@ -76,7 +76,7 @@ build_environment() {
     
     # Copy necessary files
     cp -r "${PROJECT_ROOT}/src" "${BUILD_DIR}/"
-    cp "${PROJECT_ROOT}/docker/environment/Dockerfile" "${BUILD_DIR}/"
+    cp "${PROJECT_ROOT}/docker/custom/environment/Dockerfile" "${BUILD_DIR}/"
     
     # Create requirements.txt for environment service
     cat > "${BUILD_DIR}/requirements.txt" << 'EOF'
@@ -104,7 +104,7 @@ build_trainer() {
     docker buildx build \
         --platform ${TARGET_PLATFORM} \
         -t "${TRAINER_IMAGE}:latest" \
-        -f "${PROJECT_ROOT}/docker/trainer/Dockerfile" \
+        -f "${PROJECT_ROOT}/docker/custom/trainer/Dockerfile" \
         --push \
         "${PROJECT_ROOT}"
     
@@ -117,7 +117,7 @@ build_vllm_server() {
     docker buildx build \
         --platform ${TARGET_PLATFORM} \
         -t "${VLLM_SERVER_IMAGE}:latest" \
-        -f "${PROJECT_ROOT}/docker/vllm-server/Dockerfile" \
+        -f "${PROJECT_ROOT}/docker/custom/vllm-server/Dockerfile" \
         --push \
         "${PROJECT_ROOT}"
     

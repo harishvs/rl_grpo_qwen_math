@@ -113,7 +113,7 @@ After 49 steps (before crash), reward was oscillating 0.31–0.56 with no clear 
 
 ```bash
 # Build and push images
-./scripts/build-and-push-images.sh all
+./scripts/custom/build-and-push-images.sh all
 
 # Deploy
 kubectl apply -f k8s/custom/config/
@@ -210,17 +210,11 @@ ref.fsdp_config.param_offload: True   # ref model on CPU
 ### Running veRL
 
 ```bash
-# Install KubeRay operator (managed via Terraform)
-# See terraform/environments/dev/main.tf
+# One command — deploys RayCluster, installs veRL, launches training
+./scripts/verl/run-training.sh
 
-# Prep data + deploy
-kubectl apply -f k8s/verl/configmap.yaml
-kubectl apply -f k8s/verl/raycluster.yaml
-
-# Wait for pods, install veRL, launch training
-kubectl exec <head-pod> -- pip install verl==0.6.1
-kubectl exec <head-pod> -- python3 /scripts/prep_data.py
-kubectl exec <head-pod> -- bash /scripts/run_grpo.sh
+# Or with a different model
+./scripts/verl/run-training.sh --model Qwen/Qwen2.5-7B --follow
 ```
 
 ### Checkpoints
@@ -284,6 +278,14 @@ src/
     ├── prep_data.py            # GSM8K → parquet
     ├── reward.py               # Binary reward function
     └── run_grpo.sh             # Training launch script
+
+scripts/
+├── custom/                     # Scripts for from-scratch trainer
+│   ├── build-and-push-images.sh
+│   ├── start-training.sh
+│   └── ...
+└── verl/
+    └── run-training.sh         # Deploy RayCluster + launch veRL training
 
 k8s/
 ├── custom/                     # K8s manifests for from-scratch trainer
