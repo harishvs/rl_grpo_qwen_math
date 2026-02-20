@@ -20,14 +20,75 @@ Qwen2.5-1.5B trained on GSM8K (7,473 problems, 1 epoch) using veRL on 2x p4d.24x
 
 ## What is GRPO?
 
-GRPO improves upon PPO for language model training:
+GRPO (Group Relative Policy Optimization) is an RL algorithm from the DeepSeek-R1 paper. It simplifies PPO by removing the need for a value/critic network.
 
-1. **Generate multiple responses** (a "group") for each math problem
-2. **Score each response** using a reward function that checks correctness
-3. **Compute advantages** by comparing each response to the group average (no value network needed)
-4. **Update the policy** using clipped gradients to prevent too-large updates
+**The RL loop:**
 
-Simpler than PPO — no critic network to train.
+```
+┌─────────┐   action (completion)   ┌─────────────┐
+│  Agent   │ ─────────────────────► │ Environment │
+│ (policy) │ ◄───────────────────── │  (scorer)   │
+└─────────┘   reward (0.0 or 1.0)   └─────────────┘
+```
+
+- **Agent/Policy (π)** — The language model. Given a prompt, it produces a completion. π is the probability distribution over tokens.
+- **Environment** — Evaluates the completion and returns a reward. For math: extract the number, check if it matches the answer.
+- **Reward** — 1.0 if correct, 0.0 if wrong. No learned reward model needed for well-defined tasks like math.
+
+**Why RL instead of supervised fine-tuning?** SFT requires human-written solutions and the model learns to imitate them. With RL, the model discovers its own reasoning strategies — it only needs a reward signal, not worked-out solutions. It optimizes for *correctness*, not *similarity to a reference*.
+
+**How GRPO works:**
+
+1. For each problem, generate G completions (a "group")
+2. Score each completion (correct = 1.0, wrong = 0.0)
+3. Compute advantages relative to the group mean — no value network needed:
+   ```
+   advantage_i = (reward_i - mean(rewards)) / std(rewards)
+   ```
+4. Update the policy using clipped gradients to prevent too-large updates:
+   ```python
+   ratio = exp(log_prob_new - log_prob_old)  # π_new(a|s) / π_old(a|s)
+   clipped_ratio = clamp(ratio, 1 - ε, 1 + ε)  # ε = 0.2
+   loss = -min(ratio * advantage, clipped_ratio * advantage)
+   ```
+
+If 3 out of 8 completions are correct, those 3 get positive advantage and the other 5 get negative. The model learns by comparing against itself.
+
+**KL penalty** keeps the model from drifting too far from the original:
+
+```
+total_loss = policy_loss + kl_coef * KL(π_new || π_old)
+```
+
+We use the Schulman estimator for KL, which is always non-negative: `((ratio - 1) - log(ratio)).mean()`. Without this, the model can "hack" the reward signal — finding degenerate outputs that score high but are nonsensical.
+
+## GSM8K Dataset
+
+GSM8K (Grade School Math 8K) is 8,792 grade-school math word problems by OpenAI — the standard benchmark for math reasoning.
+
+- 7,473 training problems, 1,319 test problems
+- Each problem requires 2-8 steps of basic arithmetic
+- Answer format: step-by-step reasoning ending with `#### <number>`
+
+**Example:**
+```
+Q: A craft store makes a third of its sales in the fabric section, a quarter
+   in jewelry, and the rest in stationery. They made 36 sales today.
+   How many sales were in the stationery section?
+
+A: 36 / 3 = 12 fabric sales. 36 / 4 = 9 jewelry sales.
+   36 - 12 - 9 = 15 stationery sales.
+   #### 15
+```
+
+**Why GSM8K for RL:** Problems are simple enough that a 1.5B model sometimes gets them right (giving a non-zero reward signal), but hard enough that the base model gets ~85% wrong, leaving room for improvement. Binary correctness is trivial to verify.
+
+## FSDP (Fully Sharded Data Parallelism)
+
+FSDP shards model parameters, gradients, and optimizer states across GPUs. Each GPU holds 1/N of the model.
+
+- `FULL_SHARD` — shards params, grads, and optimizer states. Minimum memory, maximum communication.
+- Our 1.5B model in bf16: ~3GB total → ~200MB per GPU with 16-way sharding
 
 ## Training Loop
 
