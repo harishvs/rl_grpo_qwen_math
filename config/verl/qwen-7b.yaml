@@ -17,10 +17,10 @@ actor:
   gradient_checkpointing: true
 
 rollout:
-  gpu_memory_utilization: 0.4
+  gpu_memory_utilization: 0.5
   n: 8
   log_prob_micro_batch_size_per_gpu: 8
-  tensor_model_parallel_size: 1
+  tensor_model_parallel_size: 2
 
 ref:
   log_prob_micro_batch_size_per_gpu: 8
