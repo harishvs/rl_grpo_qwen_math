@@ -80,7 +80,7 @@ data:
                          key=os.path.getmtime, reverse=True)
             for f in logs:
                 with open(f) as fh:
-                    if "step:" in fh.read(4096):
+                    if "step:" in fh.read():
                         return f
             time.sleep(10)
         return None
