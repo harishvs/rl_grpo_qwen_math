@@ -50,3 +50,8 @@
 - Effective throughput: 1,024 seq / 505s ≈ 2 seq/s vs 1.5B's 29 seq/s
 - Initial vLLM cache error with gpu_memory_utilization=0.4 — bumped to 0.5 with TP=2
 - Disk pressure taint on worker node was stale (8% disk used) — kubelet restart fixed it but lost pause image
+- **20:49 PST** — Both pods evicted: "Attempting to reclaim ephemeral-storage". HF model cache (~15GB for 7B) filled root disk. Training ran ~3h (est. 21/58 steps) before eviction.
+- **21:22** — Fixed pause image on both nodes, relaunched with `HF_HOME=/data/hf_cache` (emptyDir backed by memory) to avoid root disk pressure
+- New head pod: `verl-grpo-head-724lx`
+- **21:28** — HF_HOME override caused model not found error (workers use /tmp/hf_cache from raycluster env). Relaunched without override.
+- **21:38** — GPUs at 100%, initial validation running. ETA ~5:30 AM but capacity expires 3:30 AM. Will get ~42/58 steps. Checkpoint at step 20 guaranteed.
