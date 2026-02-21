@@ -29,19 +29,20 @@
 - **17:55** — Initial validation running, all GPUs at 100%, ~28.7GB/40GB memory
 - Head pod: `verl-grpo-head-zjv8s`
 
-## Training Progress
+## Training Progress (Relaunch 2, starting ~21:30 PST)
 
 58 total steps, ~505s/step → estimated ~8.1 hours total
 
-| Step | Step Time | Notes |
-|------|-----------|-------|
-| 1 | 508s | First step |
-| 2 | 505s | Consistent |
+| Step | Reward | KL | Policy Loss | Entropy | Grad Norm | Step Time |
+|------|--------|-----|-------------|---------|-----------|-----------|
+| 0 (val) | 14.3% | — | — | — | — | — |
+| 1 | 18.0% | 0.000187 | -0.00174 | 0.780 | 1.71 | 508s |
+| 2 | 28.4% | 0.000078 | -0.00160 | 0.853 | 10.17 | 503s |
 
 ## GPU Memory
 - All 8 GPUs at 100% utilization during generation
-- ~28.7GB / 40GB used per GPU (FSDP actor + vLLM KV cache with TP=2)
-- Detailed per-step metrics (reward, KL) not visible in stdout — swallowed by tqdm progress bar
+- ~27.1GB allocated, ~39.1GB reserved per GPU (FSDP actor + vLLM KV cache with TP=2)
+- 61.8GB CPU memory used (ref model offloaded to CPU)
 
 ## Observations
 
