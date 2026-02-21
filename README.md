@@ -271,11 +271,14 @@ ref.fsdp_config.param_offload: True   # ref model on CPU
 ### Running veRL
 
 ```bash
-# One command — deploys RayCluster, installs veRL, launches training
+# Train Qwen2.5-1.5B (default)
 ./scripts/verl/run-training.sh
 
-# Or with a different model
-./scripts/verl/run-training.sh --model Qwen/Qwen2.5-7B --follow
+# Train Qwen2.5-7B
+./scripts/verl/run-training.sh --config qwen-7b.yaml
+
+# With log following
+./scripts/verl/run-training.sh --config qwen-7b.yaml --follow
 ```
 
 ### Checkpoints

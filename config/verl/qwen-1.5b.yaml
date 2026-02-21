@@ -1,0 +1,34 @@
+# Qwen2.5-1.5B GRPO training config
+# Proven: 14.5% → 77.0% accuracy in 35 minutes on 16x A100 40GB
+model: Qwen/Qwen2.5-1.5B
+experiment_name: qwen1.5b
+
+data:
+  train_batch_size: 256
+  max_prompt_length: 512
+  max_response_length: 1024
+
+actor:
+  ppo_mini_batch_size: 128
+  ppo_micro_batch_size_per_gpu: 16
+  lr: 5e-6
+  fsdp_param_offload: false
+  fsdp_optimizer_offload: false
+  gradient_checkpointing: true
+
+rollout:
+  gpu_memory_utilization: 0.5
+  n: 8
+  log_prob_micro_batch_size_per_gpu: 32
+  tensor_model_parallel_size: 1
+
+ref:
+  log_prob_micro_batch_size_per_gpu: 32
+  fsdp_param_offload: true
+
+trainer:
+  n_gpus_per_node: 8
+  nnodes: 2
+  total_epochs: 1
+  save_freq: 20
+  test_freq: 10
