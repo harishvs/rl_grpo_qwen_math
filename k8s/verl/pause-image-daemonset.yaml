@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: pause-image-fix
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app: pause-image-fix
+  template:
+    metadata:
+      labels:
+        app: pause-image-fix
+    spec:
+      nodeSelector:
+        node.kubernetes.io/instance-type: p4d.24xlarge
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+      hostPID: true
+      containers:
+      - name: fix
+        image: amazon/aws-cli:latest
+        securityContext:
+          privileged: true
+        command:
+        - /bin/bash
+        - -c
+        - |
+          # Check if pause image exists, if not pull and tag it
+          while true; do
+            if ! nsenter -t 1 -m -- ctr -n k8s.io images list | grep -q "localhost/kubernetes/pause"; then
+              echo "Pause image missing, fixing..."
+              REGION=us-east-1
+              TOKEN=$(curl -s -X PUT http://169.254.169.254/latest/api/token -H "X-aws-ec2-metadata-token-ttl-seconds: 60")
+              ROLE=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/iam/security-credentials/)
+              CREDS=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/iam/security-credentials/$ROLE)
+              export AWS_ACCESS_KEY_ID=$(echo $CREDS | python3 -c "import sys,json;print(json.load(sys.stdin)['AccessKeyId'])")
+              export AWS_SECRET_ACCESS_KEY=$(echo $CREDS | python3 -c "import sys,json;print(json.load(sys.stdin)['SecretAccessKey'])")
+              export AWS_SESSION_TOKEN=$(echo $CREDS | python3 -c "import sys,json;print(json.load(sys.stdin)['Token'])")
+              PASSWORD=$(aws ecr get-login-password --region $REGION)
+              nsenter -t 1 -m -- ctr -n k8s.io images pull --user "AWS:$PASSWORD" 602401143452.dkr.ecr.$REGION.amazonaws.com/eks/pause:3.8
+              nsenter -t 1 -m -- ctr -n k8s.io images tag 602401143452.dkr.ecr.$REGION.amazonaws.com/eks/pause:3.8 localhost/kubernetes/pause:latest
+              echo "Pause image fixed"
+            fi
+            sleep 300
+          done
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 100m
+            memory: 64Mi

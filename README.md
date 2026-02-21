@@ -381,7 +381,9 @@ k8s/
     ├── raycluster.yaml         # RayCluster for 2x p4d.24xlarge
     ├── configmap.yaml          # Data prep, reward function, training script
     ├── podmonitor.yaml         # Prometheus scrape target
-    └── grafana-dashboard.yaml  # Auto-provisioned Grafana dashboard
+    ├── grafana-dashboard.yaml  # Auto-provisioned Grafana dashboard
+    ├── storageclass.yaml       # gp3 EBS storage class
+    └── pause-image-daemonset.yaml  # Auto-fix pause image on GPU nodes
 
 docker/
 ├── custom/                     # Dockerfiles for from-scratch trainer
