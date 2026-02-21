@@ -310,6 +310,25 @@ Checkpoints are FSDP-sharded (16 rank files as DTensors). To reconstruct a Huggi
 
 The custom trainer was valuable for understanding GRPO internals — per-token importance ratios, KL estimation, FSDP weight management, vLLM integration challenges. But for actual training, veRL is the right tool.
 
+## Observability
+
+Training metrics are exported to Prometheus and visualized in Grafana, both running on CPU nodes so they persist independently of GPU training pods.
+
+**Stack:** kube-prometheus-stack (Helm) → Prometheus scrapes veRL head pod → Grafana dashboards
+
+**Metrics exported:** Reward, KL divergence, policy loss, entropy, gradient norm, step time, GPU memory, throughput, validation reward.
+
+**How it works:**
+- A sidecar script (`cloudwatch_metrics.py` in the configmap) runs on the head pod, tails the veRL worker log, and exposes metrics via `prometheus_client` on port 9090
+- A `PodMonitor` (`k8s/verl/podmonitor.yaml`) tells Prometheus to scrape the head pod
+- A Grafana dashboard (`k8s/verl/grafana-dashboard.yaml`) is auto-provisioned via ConfigMap
+
+**Access Grafana:**
+```bash
+kubectl port-forward -n monitoring svc/prometheus-grafana 3000:80
+# Open http://localhost:3000 — admin / grpo-training
+```
+
 ## Infrastructure
 
 ```
@@ -360,7 +379,9 @@ k8s/
 │   └── monitoring/             # CloudWatch agent
 └── verl/                       # K8s manifests for veRL
     ├── raycluster.yaml         # RayCluster for 2x p4d.24xlarge
-    └── configmap.yaml          # Data prep, reward function, training script
+    ├── configmap.yaml          # Data prep, reward function, training script
+    ├── podmonitor.yaml         # Prometheus scrape target
+    └── grafana-dashboard.yaml  # Auto-provisioned Grafana dashboard
 
 docker/
 ├── custom/                     # Dockerfiles for from-scratch trainer

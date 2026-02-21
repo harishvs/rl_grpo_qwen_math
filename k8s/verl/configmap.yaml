@@ -41,6 +41,83 @@ data:
         except ValueError:
             return 1.0 if predicted == gt else 0.0
 
+  cloudwatch_metrics.py: |
+    """Sidecar: tail veRL worker log and expose metrics for Prometheus.
+    Runs on the head pod."""
+    import glob, os, re, time
+    from prometheus_client import start_http_server, Gauge
+
+    POLL_INTERVAL = 10
+    PORT = 9090
+
+    gauges = {}
+    METRIC_KEYS = [
+        "critic/score/mean", "critic/score/max", "critic/score/min",
+        "actor/ppo_kl", "actor/pg_loss", "actor/entropy", "actor/grad_norm",
+        "actor/pg_clipfrac", "actor/kl_loss",
+        "timing_s/step", "timing_s/gen", "timing_s/update_actor", "timing_s/ref",
+        "response_length/mean", "perf/max_memory_allocated_gb",
+        "perf/throughput", "perf/total_num_tokens",
+    ]
+    VAL_KEY_PREFIX = "val-core"
+
+    def gauge_name(key):
+        return "verl_" + re.sub(r"[^a-zA-Z0-9_]", "_", key)
+
+    def get_gauge(key):
+        name = gauge_name(key)
+        if name not in gauges:
+            gauges[name] = Gauge(name, key, ["run"])
+        return gauges[name]
+
+    # Global step gauge
+    step_gauge = Gauge("verl_global_step", "Current training step", ["run"])
+    run = os.environ.get("VERL_EXPERIMENT", "default")
+
+    def find_worker_log():
+        for _ in range(600):
+            logs = sorted(glob.glob("/tmp/ray/session_latest/logs/worker-*.out"),
+                         key=os.path.getmtime, reverse=True)
+            for f in logs:
+                with open(f) as fh:
+                    if "step:" in fh.read(4096):
+                        return f
+            time.sleep(10)
+        return None
+
+    def parse_and_update(log_path):
+        last_step = -1
+        with open(log_path) as f:
+            for line in f:
+                if not line.startswith("step:"):
+                    continue
+                parts = dict(p.split(":", 1) for p in line.strip().split(" - ") if ":" in p)
+                step = int(float(parts.get("training/global_step", parts.get("step", "0"))))
+                if step <= last_step:
+                    continue
+                last_step = step
+                step_gauge.labels(run=run).set(step)
+                for k, v in parts.items():
+                    if k.startswith(VAL_KEY_PREFIX):
+                        get_gauge("val_reward").labels(run=run).set(float(v))
+                for key in METRIC_KEYS:
+                    if key in parts:
+                        get_gauge(key).labels(run=run).set(float(parts[key]))
+                print(f"step {step}: updated metrics", flush=True)
+
+    start_http_server(PORT)
+    print(f"Prometheus metrics server on :{PORT}", flush=True)
+    log_path = find_worker_log()
+    if not log_path:
+        print("ERROR: no worker log found, waiting...")
+        while not log_path:
+            time.sleep(30)
+            log_path = find_worker_log()
+    print(f"Tailing {log_path}", flush=True)
+    while True:
+        parse_and_update(log_path)
+        time.sleep(POLL_INTERVAL)
+
   run_grpo.sh: |
     #!/bin/bash
     set -ex
@@ -70,6 +147,9 @@ data:
 
     # Prep data
     python3 /scripts/prep_data.py
+    # Start Prometheus metrics exporter
+    pip install -q prometheus_client
+    python3 /scripts/cloudwatch_metrics.py &
     # Download model
     python3 -c "from transformers import AutoModelForCausalLM, AutoTokenizer; AutoTokenizer.from_pretrained('${VERL_MODEL}'); AutoModelForCausalLM.from_pretrained('${VERL_MODEL}')"
     # Run GRPO

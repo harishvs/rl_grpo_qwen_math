@@ -178,7 +178,9 @@ resource "aws_iam_role" "grpo_trainer" {
         Condition = {
           StringEquals = {
             "${local.oidc_provider_id}:aud" = "sts.amazonaws.com"
-            "${local.oidc_provider_id}:sub" = "system:serviceaccount:default:grpo-trainer-sa"
+          }
+          StringLike = {
+            "${local.oidc_provider_id}:sub" = "system:serviceaccount:default:*-trainer-sa"
           }
         }
       }
@@ -207,6 +209,18 @@ resource "aws_iam_role_policy" "grpo_trainer_s3" {
           aws_s3_bucket.checkpoints.arn,
           "${aws_s3_bucket.checkpoints.arn}/*"
         ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "cloudwatch:PutMetricData"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "cloudwatch:namespace" = "GRPO-Training"
+          }
+        }
       }
     ]
   })
@@ -299,6 +313,20 @@ resource "kubernetes_service_account" "grpo_trainer" {
     namespace = "default"
     labels = {
       app       = "grpo-trainer"
+      component = "identity"
+    }
+    annotations = {
+      "eks.amazonaws.com/role-arn" = aws_iam_role.grpo_trainer.arn
+    }
+  }
+}
+
+resource "kubernetes_service_account" "verl_trainer" {
+  metadata {
+    name      = "verl-trainer-sa"
+    namespace = "default"
+    labels = {
+      app       = "verl-trainer"
       component = "identity"
     }
     annotations = {

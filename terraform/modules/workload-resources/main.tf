@@ -72,7 +72,7 @@ data "aws_caller_identity" "current" {}
 # IAM Policy for trainer to access S3
 resource "aws_iam_policy" "trainer_s3_access" {
   name        = "${var.project_name}-trainer-s3-access"
-  description = "Allows GRPO trainer to read/write checkpoints to S3"
+  description = "Allows GRPO trainer to access S3 checkpoints and push CloudWatch metrics"
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -89,6 +89,18 @@ resource "aws_iam_policy" "trainer_s3_access" {
           aws_s3_bucket.checkpoints.arn,
           "${aws_s3_bucket.checkpoints.arn}/*"
         ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "cloudwatch:PutMetricData"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "cloudwatch:namespace" = "GRPO-Training"
+          }
+        }
       }
     ]
   })
@@ -110,8 +122,10 @@ resource "aws_iam_role" "trainer" {
         }
         Action = "sts:AssumeRoleWithWebIdentity"
         Condition = {
+          StringLike = {
+            "${var.oidc_provider_url}:sub" = "system:serviceaccount:${var.trainer_namespace}:*-trainer-sa"
+          }
           StringEquals = {
-            "${var.oidc_provider_url}:sub" = "system:serviceaccount:${var.trainer_namespace}:grpo-trainer-sa"
             "${var.oidc_provider_url}:aud" = "sts.amazonaws.com"
           }
         }

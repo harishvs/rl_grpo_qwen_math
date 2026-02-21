@@ -10,11 +10,15 @@ spec:
       num-gpus: '8'
     template:
       spec:
+        serviceAccountName: verl-trainer-sa
         nodeSelector:
           node.kubernetes.io/instance-type: p4d.24xlarge
         containers:
         - name: ray-head
           image: hiyouga/verl:ngc-th2.6.0-cu126-vllm0.8.4-flashinfer0.2.2-cxx11abi0
+          ports:
+          - name: metrics
+            containerPort: 9090
           resources:
             limits:
               nvidia.com/gpu: '8'
@@ -60,6 +64,7 @@ spec:
       num-gpus: '8'
     template:
       spec:
+        serviceAccountName: verl-trainer-sa
         nodeSelector:
           node.kubernetes.io/instance-type: p4d.24xlarge
         containers:
