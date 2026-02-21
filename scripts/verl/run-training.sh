@@ -35,25 +35,24 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
     exit 1
 fi
 
-# Parse YAML config (simple key: value extraction via python)
+# Parse YAML config
 read_config() {
     python3 -c "
-import yaml, sys
+import yaml
 with open('$CONFIG_FILE') as f:
     c = yaml.safe_load(f)
 def flat(d, prefix=''):
     for k, v in d.items():
-        key = f'{prefix}{k}' if not prefix else f'{prefix}.{k}'
+        key = f'{prefix}_{k}' if prefix else k
         if isinstance(v, dict):
             flat(v, key)
         else:
-            print(f'{key}={v}')
+            print(f'CFG_{key}={v}')
 flat(c)
 "
 }
 
-# Load config values
-eval "$(read_config | sed 's/^/CFG_/' | sed 's/=\(.*\)/="\1"/')"
+eval "$(read_config)"
 
 MODEL="${CFG_model}"
 echo -e "${GREEN}=== veRL GRPO Training ===${NC}"
@@ -109,26 +108,26 @@ echo ""
 # Build env vars string from config
 ENV_VARS="VERL_MODEL=${CFG_model}"
 ENV_VARS+=" VERL_EXPERIMENT=${CFG_experiment_name}"
-ENV_VARS+=" VERL_TRAIN_BATCH_SIZE=${CFG_data.train_batch_size}"
-ENV_VARS+=" VERL_MAX_PROMPT_LENGTH=${CFG_data.max_prompt_length}"
-ENV_VARS+=" VERL_MAX_RESPONSE_LENGTH=${CFG_data.max_response_length}"
-ENV_VARS+=" VERL_MINI_BATCH_SIZE=${CFG_data.ppo_mini_batch_size:-${CFG_actor.ppo_mini_batch_size}}"
-ENV_VARS+=" VERL_MICRO_BATCH_SIZE=${CFG_actor.ppo_micro_batch_size_per_gpu}"
-ENV_VARS+=" VERL_LR=${CFG_actor.lr}"
-ENV_VARS+=" VERL_ACTOR_PARAM_OFFLOAD=${CFG_actor.fsdp_param_offload}"
-ENV_VARS+=" VERL_ACTOR_OPTIMIZER_OFFLOAD=${CFG_actor.fsdp_optimizer_offload}"
-ENV_VARS+=" VERL_GRADIENT_CHECKPOINTING=${CFG_actor.gradient_checkpointing}"
-ENV_VARS+=" VERL_GPU_MEM_UTIL=${CFG_rollout.gpu_memory_utilization}"
-ENV_VARS+=" VERL_ROLLOUT_N=${CFG_rollout.n}"
-ENV_VARS+=" VERL_ROLLOUT_LOG_PROB_MICRO_BATCH=${CFG_rollout.log_prob_micro_batch_size_per_gpu}"
-ENV_VARS+=" VERL_ROLLOUT_TP=${CFG_rollout.tensor_model_parallel_size}"
-ENV_VARS+=" VERL_REF_LOG_PROB_MICRO_BATCH=${CFG_ref.log_prob_micro_batch_size_per_gpu}"
-ENV_VARS+=" VERL_REF_PARAM_OFFLOAD=${CFG_ref.fsdp_param_offload}"
-ENV_VARS+=" VERL_N_GPUS=${CFG_trainer.n_gpus_per_node}"
-ENV_VARS+=" VERL_NNODES=${CFG_trainer.nnodes}"
-ENV_VARS+=" VERL_TOTAL_EPOCHS=${CFG_trainer.total_epochs}"
-ENV_VARS+=" VERL_SAVE_FREQ=${CFG_trainer.save_freq}"
-ENV_VARS+=" VERL_TEST_FREQ=${CFG_trainer.test_freq}"
+ENV_VARS+=" VERL_TRAIN_BATCH_SIZE=${CFG_data_train_batch_size}"
+ENV_VARS+=" VERL_MAX_PROMPT_LENGTH=${CFG_data_max_prompt_length}"
+ENV_VARS+=" VERL_MAX_RESPONSE_LENGTH=${CFG_data_max_response_length}"
+ENV_VARS+=" VERL_MINI_BATCH_SIZE=${CFG_actor_ppo_mini_batch_size}"
+ENV_VARS+=" VERL_MICRO_BATCH_SIZE=${CFG_actor_ppo_micro_batch_size_per_gpu}"
+ENV_VARS+=" VERL_LR=${CFG_actor_lr}"
+ENV_VARS+=" VERL_ACTOR_PARAM_OFFLOAD=${CFG_actor_fsdp_param_offload}"
+ENV_VARS+=" VERL_ACTOR_OPTIMIZER_OFFLOAD=${CFG_actor_fsdp_optimizer_offload}"
+ENV_VARS+=" VERL_GRADIENT_CHECKPOINTING=${CFG_actor_gradient_checkpointing}"
+ENV_VARS+=" VERL_GPU_MEM_UTIL=${CFG_rollout_gpu_memory_utilization}"
+ENV_VARS+=" VERL_ROLLOUT_N=${CFG_rollout_n}"
+ENV_VARS+=" VERL_ROLLOUT_LOG_PROB_MICRO_BATCH=${CFG_rollout_log_prob_micro_batch_size_per_gpu}"
+ENV_VARS+=" VERL_ROLLOUT_TP=${CFG_rollout_tensor_model_parallel_size}"
+ENV_VARS+=" VERL_REF_LOG_PROB_MICRO_BATCH=${CFG_ref_log_prob_micro_batch_size_per_gpu}"
+ENV_VARS+=" VERL_REF_PARAM_OFFLOAD=${CFG_ref_fsdp_param_offload}"
+ENV_VARS+=" VERL_N_GPUS=${CFG_trainer_n_gpus_per_node}"
+ENV_VARS+=" VERL_NNODES=${CFG_trainer_nnodes}"
+ENV_VARS+=" VERL_TOTAL_EPOCHS=${CFG_trainer_total_epochs}"
+ENV_VARS+=" VERL_SAVE_FREQ=${CFG_trainer_save_freq}"
+ENV_VARS+=" VERL_TEST_FREQ=${CFG_trainer_test_freq}"
 
 # Launch training
 echo -e "${GREEN}=== Launching training ===${NC}"
