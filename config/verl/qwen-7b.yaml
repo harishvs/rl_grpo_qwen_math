@@ -30,5 +30,5 @@ trainer:
   n_gpus_per_node: 8
   nnodes: 2
   total_epochs: 1
-  save_freq: 20
+  save_freq: 10
   test_freq: 10
