@@ -408,3 +408,9 @@ docs/
 - [veRL](https://github.com/volcengine/verl) — Production RL post-training framework
 - [GSM8K Dataset](https://github.com/openai/grade-school-math) — Math problems
 - [vLLM](https://github.com/vllm-project/vllm) — Fast inference engine
+
+
+TODO:
+1. offline RL - do we need rdma
+2. coding
+3. online rl with two node pools

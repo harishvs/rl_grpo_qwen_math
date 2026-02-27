@@ -18,3 +18,4 @@ terraform/bootstrap/terraform.tfstate
 terraform/environments/dev/.terraform.tfstate.lock.info
 .DS_Store
 terraform/environments/dev/terraform.tfstate.1771481526.backup
+docs/node_modules/

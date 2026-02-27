@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true });
+    </script>
+</head>
+<body>
+    <pre class="mermaid">
+sequenceDiagram
+    participant Trainer
+    participant Actor
+    participant vLLM
+    participant Ref
+    participant Env
+    participant GRPO
+
+    Note over Trainer: Step begins (256 prompts)
+    
+    Note over Trainer,GRPO: Phase 1 Generation (~19s)
+    Note over Actor: vLLM reshards Actor FSDP weights
+    Trainer->>vLLM: Generate 8 completions per prompt
+    Note over vLLM: 128 sequences per GPU, 2048 total
+    vLLM-->>Trainer: Completions + old_log_probs
+
+    Note over Trainer,Ref: Phase 2 Reference Log Probs (~5s)
+    Trainer->>Ref: Load from CPU
+    Trainer->>Ref: Forward pass
+    Ref-->>Trainer: ref_log_probs
+
+    Note over Trainer,Env: Phase 3 Reward Scoring (~0.6s)
+    loop For each completion
+        Trainer->>Env: Extract answer
+        Env->>Env: Parse number after ####
+        Env->>Env: Compare with ground truth
+        Env-->>Trainer: reward (1.0 or 0.0)
+    end
+
+    Note over Trainer,GRPO: Phase 4 Advantage Computation (~0.05s)
+    Trainer->>GRPO: rewards (grouped by prompt)
+    Note over GRPO: advantage = (reward - mean) / std
+    GRPO-->>Trainer: advantages (2048 values)
+
+    Note over Trainer,Actor: Phase 5 Policy Update (~39s)
+    Trainer->>Actor: Forward pass
+    Actor-->>Trainer: new_log_probs
+    Note over Trainer: Compute ratio and clipped loss
+    Note over Trainer: Add KL penalty
+    Trainer->>Actor: Backward pass
+    Trainer->>Actor: Optimizer step (FSDP all-reduce)
+    Note over Actor: Weights updated across 16 GPUs
+
+    Note over Trainer: Step complete (~70s total)
+    </pre>
+</body>
+</html>

@@ -50,7 +50,7 @@ GSM8K is grade-school math — 2 to 8 step arithmetic problems. Simple enough th
 
 **A:** 16 - 3 - 4 = 9 eggs. 9 × $2 = $18. **#### 18** — we only use this final number
 
-![](grpo_rl_loop.png)
+![](grpo_rl_loop.png){ width=100% }
 
 ::: notes
 This is a real example from GSM8K. The dataset has step-by-step solutions with calculator annotations, but we throw all of that away. We only extract the number after the #### marker and use it as the ground truth for the binary reward. The model never sees the solution text — it has to discover its own reasoning.
@@ -80,7 +80,7 @@ The custom trainer was a learning exercise — we wanted to understand every pie
 
 # Experiment 1: Custom Trainer — The Journey
 
-![](custom_trainer_architecture.png)
+![](custom_trainer_architecture.png){ width=100% }
 
 ::: notes
 This is the architecture we built from scratch. The vLLM server runs on its own GPU and generates completions via HTTP. The trainer pods run FSDP across 14 GPUs on 2 nodes. The environment service on a CPU node checks if answers are correct. The awkward part is the weight sync — every 3 steps, rank 0 has to serialize 3GB of weights and POST them to the vLLM server over HTTP. That takes 22 seconds each time. Why HTTP and not RDMA/NCCL? Because vLLM runs in a separate process with its own CUDA context — it can't join the trainer's NCCL process group without deadlocking. We tried running vLLM inside torchrun and it hung on initialization because both vLLM and FSDP fight over NCCL. So the only way to communicate was through the network stack — HTTP was the simplest option. This is the fundamental bottleneck that veRL solves by colocating everything in the same process and doing zero-copy weight resharding. An alternative we didn't try: torchrun with nproc_per_node=7 on node 1 (leaving GPU 0 free for vLLM) and nproc_per_node=8 on node 2. This works because torchrun's c10d rendezvous backend — a TCP key-value store on the master node — handles asymmetric process counts. Each node registers however many processes it launched, and once all check in, ranks are assigned. With this setup, GPU 0 is completely outside the NCCL group, so no deadlock. Weight sync could then use shared memory or cudaIpcMemHandle (same-node GPU-to-GPU memory sharing) instead of HTTP — cutting 22 seconds down to 1-2 seconds. We jumped straight to separate pods which forced us into HTTP.
@@ -161,7 +161,7 @@ The key insight was that HuggingFace generate supports num_return_sequences — 
 
 # Attempt 4: Training Progress
 
-![Training Progress — Attempt 4](../run-2026-02-19/training_progress_step18.png)
+![](../run-2026-02-19/training_progress_step18.png){ width=100% }
 
 # Attempt 5: vLLM Server
 
@@ -210,7 +210,7 @@ These are the five most impactful bugs we found. The importance ratio bug was th
 
 Switched to veRL (ByteDance) — production RL post-training framework.
 
-![](verl_deployment_architecture.png)
+![](verl_deployment_architecture.png){ width=100% }
 
 ::: notes
 After 12 hours of debugging the custom trainer, we switched to veRL. The architecture is fundamentally different — every GPU runs all roles by cycling through phases. No separate vLLM pod, no HTTP weight sync, no memory fragmentation from dedicated roles. veRL manages GPU memory by loading and unloading models between phases. The ref model lives on CPU and only comes to GPU briefly for log prob computation. How does veRL avoid the NCCL deadlock we hit? It doesn't run vLLM and FSDP simultaneously — it time-shares the same GPUs. During generation, the FSDP actor is offloaded and vLLM takes over. During training, vLLM's KV cache is freed and FSDP loads back. The WorkerDict abstraction holds both engines on each GPU and orchestrates turns. Weight resharding between FSDP's sharded layout and vLLM's tensor-parallel layout happens via DTensor — a metadata operation that remaps how the same physical memory is viewed, not an actual data copy. So veRL didn't solve the NCCL conflict — it avoided it entirely by never running both at the same time.
@@ -220,7 +220,7 @@ After 12 hours of debugging the custom trainer, we switched to veRL. The archite
 
 Every GPU runs all roles by cycling through phases:
 
-![](verl_architecture.png)
+![](verl-rl-loop.png){ width=100% }
 
 ::: notes
 Each step takes about 70 seconds for 2,048 sequences. Generation is 19 seconds using vLLM engines on all 16 GPUs in parallel. The actor update dominates at 39 seconds — that's the FSDP training forward and backward pass. Ref log probs take 5 seconds — the ref model is offloaded to CPU between steps and loaded back for this phase. Reward is trivial at 0.6 seconds — just CPU string matching. The key insight is zero-copy weight resharding between the FSDP actor and the vLLM engine — no serialization or network transfer needed.
@@ -228,7 +228,7 @@ Each step takes about 70 seconds for 2,048 sequences. Generation is 19 seconds u
 
 # veRL: 1.5B Results
 
-![veRL Training Progress — 1.5B](../run-2026-02-20-verl/training_progress.png)
+![](../run-2026-02-20-verl/training_progress.png){ width=100% }
 
 ::: notes
 This is the training curve for Qwen2.5-1.5B. Reward climbs steadily from near zero to about 65-70% over 29 steps. The validation reward at step 20 was 72.3% and at step 29 was 72.7% — the model had essentially converged. Total training time was 35 minutes for one full epoch of GSM8K. Compare this to the custom trainer which couldn't even finish one epoch in 26 hours.
@@ -325,7 +325,7 @@ Observability was critical — GPU training pods are ephemeral and expensive, so
 
 # Grafana Dashboard
 
-![](grafana.png)
+![](grafana.png){ width=100% }
 
 ::: notes
 This is the actual Grafana dashboard from the 7B training run. You can see reward climbing rapidly in the first 10 steps then plateauing, KL staying stable throughout, step time rock-steady at 502 seconds, and GPU memory utilization near maximum. The dashboard auto-refreshes and was our primary monitoring tool during training — we could check progress from anywhere without needing kubectl access.
