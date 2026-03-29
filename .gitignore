@@ -19,3 +19,4 @@ terraform/environments/dev/.terraform.tfstate.lock.info
 .DS_Store
 terraform/environments/dev/terraform.tfstate.1771481526.backup
 docs/node_modules/
+Build_a_Reasoning_Model_(From_Scratch)*
