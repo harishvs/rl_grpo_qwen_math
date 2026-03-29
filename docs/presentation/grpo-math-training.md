@@ -7,11 +7,11 @@ date: "February 2026"
 
 # The Punchline
 
-A 1.5B parameter model that **gets 15% of math problems right** → solves **77% correctly** in 35 minutes.
+A QWEN 1.5B parameter model with **15% base accuracy** → **77% accuracy** after just 35 minutes of RL training.
 
-A 7B model → **88% accuracy** in 83 minutes.
+A QWEN 7B model → **88% accuracy** in 83 minutes.
 
-No human-written solutions. No reward model. Just a binary signal: *right or wrong*.
+No human-written solutions. Just a binary signal: *right or wrong*.
 
 ::: notes
 This is the headline result. We took small language models that could barely do grade-school math and trained them using reinforcement learning with the simplest possible reward — did you get the right number? Yes or no. No step-by-step solutions, no human feedback, no learned reward model. The rest of this talk is about how we got here — the algorithm, the infrastructure, the bugs, and what we learned along the way.
@@ -19,15 +19,26 @@ This is the headline result. We took small language models that could barely do 
 
 # What is Reinforcement Learning?
 
-A way to train models by **trial and error** instead of showing them the right answer.
-
-- **Supervised learning**: here's the question, here's the correct answer — learn to copy it
 - **Reinforcement learning**: here's the question, try something, I'll tell you if it worked — figure out how to get it right
-
-The model explores on its own, gets a reward signal (right/wrong), and gradually improves. No hand-crafted solutions needed — just a way to check the answer.
+- The model explores on its own, gets a reward signal (right/wrong), and gradually improves. No hand-crafted solutions needed — just a way to check the answer.
+- **Supervised learning**: here's the question, here's the correct answer — learn to copy it
 
 ::: notes
 Think of it like teaching someone to cook. Supervised learning gives them a recipe to follow step by step. RL just lets them taste the result and says "good" or "bad" — they figure out the recipe themselves. This is powerful because the model can discover strategies that humans might not think of.
+:::
+
+# Where RL Fits in LLM Training
+
+![RL in the LLM training pipeline](RL_context.png)
+
+- **Instruction fine-tuning** teaches the model to follow instructions ("Summarize this text...")
+- **RL with verifiable rewards (RLVR)** trains on answer correctness — math, code, factual questions
+- **RL with human feedback (RLHF)** trains on human preferences — clarity, safety, tone
+
+Our work lives in the **RLVR** box: binary reward (right/wrong answer), no human feedback needed.
+
+::: notes
+This diagram shows where reinforcement learning fits in the modern LLM training pipeline. You start with a pre-trained model, fine-tune it to follow instructions, then apply RL. There are two main flavors of RL: RLVR uses verifiable rewards — did you get the math problem right? — while RLHF uses human preferences — is this response helpful and safe? Our GRPO training on GSM8K is squarely in the RLVR category. We have a ground truth answer we can check against, so we don't need human annotators or a learned reward model.
 :::
 
 # The Goal
@@ -62,6 +73,39 @@ This is a real example from GSM8K. The dataset has step-by-step solutions with c
 - **8 attempts per problem** — winners get reinforced, losers get penalized
 - **Clipping + KL penalty** — prevent the model from changing too much in one step
 - **No human solutions needed** — only check the final number, model discovers its own reasoning
+
+# GRPO — Custom Trainer Data Flow
+
+![](grpo_overview_custom.png){ width=100% }
+
+::: notes
+This diagram shows exactly how our custom trainer implements GRPO. Let me walk through each component intuitively.
+
+**Log probs** — Log probabilities measure how likely the model considers each generated token under its current parameters. For example, if the model is very confident about a token, the log prob is close to 0; if uncertain, it's a large negative number like -5 or -10. We compute these by running the model forward on each rollout and extracting the probability it assigns to each token it actually generated. In GRPO, we work with per-token log probs rather than summing them into a single sequence-level number.
+
+**GRPO Advantages** — Rewards alone just tell us if an answer was right or wrong. Advantages tell us how each rollout did *relative to the group*. The formula is simple: A_i = (reward_i - mean) / std. If you got 4 rollouts with rewards [1, 1, 0, 0], the mean is 0.5, so correct answers get positive advantages (+0.87) and wrong ones get negative (-0.87). These values directly scale the gradients — positive advantages increase the likelihood of actions that produced that rollout, negative advantages decrease their likelihood, and if all rollouts got the same reward, advantages are zero and the model learns nothing. The "GR" in GRPO stands for "group relative" — we compare rollouts against each other rather than against a learned value function.
+
+**PPO Clipping** — The importance ratio (ratio = exp(new_log_prob - old_log_prob)) tells us how much the policy has changed since it generated the rollout. If old and new log probs are identical, the ratio is 1.0. Clipping limits how far the new policy can move from the old one in a single step. We clamp the ratio to [0.8, 1.2] and take the minimum of the clipped and unclipped objectives. Without clipping, a large ratio would scale the advantage substantially, leading to a very large gradient step that can destabilize training — the model shifts too far, token probabilities change drastically, and you get reward crashes or entropy collapse. Our clip range of 0.2 is much tighter than DeepSeek-R1's clip_eps of 10, because we operate per-token rather than at the sequence level.
+
+**KL Penalty** — KL divergence measures how much the current policy deviates from a reference. While clipping limits how large each individual step can be, the KL term controls drift over the full training trajectory. We use the Schulman estimator: (ratio - 1) - log(ratio), which is always non-negative and equals zero when ratio = 1 (policies match). This gets added to the loss weighted by kl_coef, so updates that push the model far from its reference behavior are penalized even if they improve reward. In our custom trainer, we skip the frozen reference model to save GPU memory and instead use old_log_probs from generation time as the reference — a pragmatic tradeoff that works when the policy changes slowly between steps.
+
+The prompt goes to the LLM, which generates 4 rollouts via a remote vLLM server. The environment service checks the final number and returns binary rewards. After the gradient step, weights sync back to vLLM every 3 steps.
+:::
+
+# DeepSeek R1 vs Our Setup
+
+| Parameter | DeepSeek R1 | Our Setup |
+|---|---|---|
+| Rollouts per prompt | 8,192 total pool | 8 per prompt × 32 prompts = 256 |
+| Mini-batches | 16 (512 rollouts each) | 1 (micro-batch of 4) |
+| Clip epsilon | 10.0 (very loose) | 0.2 (tight) |
+| KL reference update | Every 400 steps | N/A (uses old_log_probs) |
+| Model size | 671B (MoE) | 1.5B / 7B |
+| Group size (G) | Not explicitly stated, but large | 8 |
+
+::: notes
+This table puts our setup in perspective against DeepSeek R1. They generate a massive pool of 8,192 rollouts upfront and split it into 16 mini-batches of 512, updating the model after each mini-batch. We generate 256 rollouts per step (32 prompts × 8 rollouts each), process them in micro-batches of 4 for memory, and do one weight update at the end. Their clip epsilon of 10 is extremely permissive — the ratio can go from 0 to 11 — because they rely more on the KL term for stability. Our 0.2 is classic PPO-style tight clipping. They refresh the frozen reference model every 400 steps; we skip it entirely. Same algorithm, vastly different scale.
+:::
 
 # Two Approaches
 

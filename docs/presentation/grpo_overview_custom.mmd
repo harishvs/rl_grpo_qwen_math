@@ -1,0 +1,56 @@
+flowchart TD
+    P["<b>Prompt</b><br/>Janet's ducks lay 16 eggs per day. She eats 3<br/>and bakes muffins with 4. She sells the rest<br/>for $2 each. How much does she make daily?"]
+
+    LLM["<b>LLM to train</b><br/>(Qwen2.5-1.5B / 7B)"]
+    P --> LLM
+
+    VLLM["<b>vLLM Server</b> (remote HTTP)<br/>Generates G=4 rollouts + <b>old_log_probs</b> per token"]
+    LLM --> VLLM
+
+    ROLLOUTS["<b>Rollouts</b><br/>1: '16−3−4=9, 9×2=18'<br/>2: '9 eggs left, $18'<br/>3: '16×2=$32'<br/>4: '16−3=13, $26'"]
+    VLLM --> ROLLOUTS
+
+    ENV["<b>Environment Service</b> (HTTP)<br/>Binary check: does final number = 18?<br/>Rewards: [1.0, 1.0, 0.0, 0.0]"]
+    ROLLOUTS --> ENV
+
+    GRPO["<b>GRPO Advantages</b><br/>A_i = (r_i − mean) / std<br/>[+0.87, +0.87, −0.87, −0.87]"]
+    ENV --> GRPO
+
+    ACTOR["<b>Actor Forward Pass</b> (FSDP)<br/>Computes <b>new_log_probs</b> per token"]
+    ROLLOUTS --> ACTOR
+
+    RATIO["<b>Per-Token Importance Ratio</b><br/>ratio = exp(new_lp − old_lp)"]
+    ACTOR -->|new_log_probs| RATIO
+    VLLM -.->|old_log_probs| RATIO
+
+    CLIP["<b>PPO Clipping</b> (per-token)<br/>−min(ratio × A, clamp(ratio, 0.8, 1.2) × A)"]
+    RATIO --> CLIP
+    GRPO --> CLIP
+
+    KL["<b>KL Penalty</b> (per-token, Schulman)<br/>(ratio − 1) − log(ratio)"]
+    RATIO --> KL
+
+    TOTAL["<b>Total Loss</b><br/>mean(policy_loss) + kl_coef × mean(KL)<br/>averaged over tokens, then sequences"]
+    CLIP --> TOTAL
+    KL --> TOTAL
+
+    GRAD["<b>Gradient Step</b><br/>clip_grad_norm → optimizer.step()"]
+    TOTAL --> GRAD
+
+    SYNC["<b>Sync Weights → vLLM</b><br/>HTTP POST (every 3 steps)"]
+    GRAD --> SYNC
+    SYNC -.-> LLM
+
+    style P fill:#e8d5f5,stroke:#b39ddb
+    style LLM fill:#e8d5f5,stroke:#b39ddb
+    style VLLM fill:#e8d5f5,stroke:#b39ddb
+    style ROLLOUTS fill:#e8d5f5,stroke:#b39ddb
+    style ENV fill:#d5ecd4,stroke:#81c784
+    style GRPO fill:#dce8f5,stroke:#90caf9
+    style ACTOR fill:#fff3e0,stroke:#ffb74d
+    style RATIO fill:#fff3e0,stroke:#ffb74d
+    style CLIP fill:#ffebee,stroke:#ef9a9a
+    style KL fill:#ffebee,stroke:#ef9a9a
+    style TOTAL fill:#ffebee,stroke:#ef9a9a
+    style GRAD fill:#f3e5f5,stroke:#ce93d8
+    style SYNC fill:#f3e5f5,stroke:#ce93d8
