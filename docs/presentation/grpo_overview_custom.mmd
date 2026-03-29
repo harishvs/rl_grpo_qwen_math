@@ -1,11 +1,8 @@
 flowchart TD
     P["<b>Prompt</b><br/>Janet's ducks lay 16 eggs per day. She eats 3<br/>and bakes muffins with 4. She sells the rest<br/>for $2 each. How much does she make daily?"]
 
-    LLM["<b>LLM to train</b><br/>(Qwen2.5-1.5B / 7B)"]
-    P --> LLM
-
-    VLLM["<b>vLLM Server</b> (remote HTTP)<br/>Generates G=4 rollouts + <b>old_log_probs</b> per token"]
-    LLM --> VLLM
+    VLLM["<b>vLLM Server</b> (remote HTTP)<br/>Hosts copy of <b>LLM to train</b> (Qwen2.5-1.5B / 7B)<br/>Generates G=4 rollouts + <b>old_log_probs</b> per token"]
+    P --> VLLM
 
     ROLLOUTS["<b>Rollouts</b><br/>1: '16−3−4=9, 9×2=18'<br/>2: '9 eggs left, $18'<br/>3: '16×2=$32'<br/>4: '16−3=13, $26'"]
     VLLM --> ROLLOUTS
@@ -39,10 +36,9 @@ flowchart TD
 
     SYNC["<b>Sync Weights → vLLM</b><br/>HTTP POST (every 3 steps)"]
     GRAD --> SYNC
-    SYNC -.-> LLM
+    SYNC -.-> VLLM
 
     style P fill:#e8d5f5,stroke:#b39ddb
-    style LLM fill:#e8d5f5,stroke:#b39ddb
     style VLLM fill:#e8d5f5,stroke:#b39ddb
     style ROLLOUTS fill:#e8d5f5,stroke:#b39ddb
     style ENV fill:#d5ecd4,stroke:#81c784
