@@ -404,7 +404,8 @@ docs/
 
 ## References
 
-- [DeepSeek-R1 Paper](https://arxiv.org/abs/2401.02954) — GRPO algorithm
+- [DeepSeek-R1 Paper](https://arxiv.org/abs/2501.12948) — RL for reasoning
+- [DeepSeekMath Paper](https://arxiv.org/abs/2402.03300) — GRPO algorithm
 - [veRL](https://github.com/volcengine/verl) — Production RL post-training framework
 - [GSM8K Dataset](https://github.com/openai/grade-school-math) — Math problems
 - [vLLM](https://github.com/vllm-project/vllm) — Fast inference engine
