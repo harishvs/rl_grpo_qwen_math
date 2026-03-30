@@ -22,7 +22,7 @@ class TrainingConfig:
     # GRPO hyperparameters
     group_size: int = 8
     learning_rate: float = 1e-6
-    kl_coef: float = 0.1
+    kl_coef: float = 0.1 #kl_coef controls how much the model is penalized for drifting away from its original behavior.
     clip_range: float = 0.2
     max_grad_norm: float = 1.0
     

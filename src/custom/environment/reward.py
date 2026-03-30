@@ -14,9 +14,9 @@ class RewardWorker:
     Computes scalar rewards based on answer correctness and format compliance.
     Runs on CPU nodes, horizontally scalable.
     
-    Reward = correctness_score + format_score
+    Reward = correctness_score
     - correctness_score: 1.0 if final answer equals ground truth, 0.0 otherwise
-    - format_score: 0.0 to 0.2 based on format compliance
+    - format_score: defined but unused (check_format is never called in production code)
     """
     
     # Patterns for extracting numeric answers

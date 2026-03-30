@@ -6,6 +6,7 @@
 - If something goes sideways, stop and re-plan immediately — do not keep pushing.
 - Use plan mode for verification steps, not just building.
 - Write detailed specs up front to reduce ambiguity.
+- Always check latest documentation for any product you are working on, for example verl, dont assume
 
 ## 2. Subagent Strategy
 

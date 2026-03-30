@@ -42,7 +42,7 @@ def compute_grpo_advantages(
     # Normalize within each group
     advantages = (grouped_rewards - group_means) / group_stds
     
-    # For groups with zero std, set advantages to 0
+    # For groups with zero std, set advantages to 0, redundant code remove!
     zero_std_mask = grouped_rewards.std(dim=1, keepdim=True) < eps
     advantages = torch.where(zero_std_mask, torch.zeros_like(advantages), advantages)
     
