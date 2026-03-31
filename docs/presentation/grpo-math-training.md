@@ -7,7 +7,7 @@ date: "February 2026"
 
 # The Punchline
 
-A QWEN 1.5B parameter model with **15% base accuracy** → **77% accuracy** after just 35 minutes of RL training.
+A QWEN 1.5B parameter model with **14.5% base accuracy** → **77% accuracy** after just 35 minutes of RL training.
 
 A QWEN 7B model → **88% accuracy** in 83 minutes.
 
@@ -61,65 +61,83 @@ GSM8K is grade-school math — 2 to 8 step arithmetic problems. Simple enough th
 
 **A:** 16 - 3 - 4 = 9 eggs. 9 × $2 = $18. **#### 18** — we only use this final number
 
-![](grpo_rl_loop.png){ width=100% }
 
 ::: notes
 This is a real example from GSM8K. The dataset has step-by-step solutions with calculator annotations, but we throw all of that away. We only extract the number after the #### marker and use it as the ground truth for the binary reward. The model never sees the solution text — it has to discover its own reasoning.
 :::
 
-# How GRPO Works
+# Key RL Concepts (1/3)
 
-- **No critic needed** — compare each attempt against the group average, not a learned value function
-- **8 attempts per problem** — winners get reinforced, losers get penalized
-- **Clipping + KL penalty** — prevent the model from changing too much in one step
-- **No human solutions needed** — only check the final number, model discovers its own reasoning
+![](rl_training_loop.png){ width=45% }
+
+- **Policy** — the model's current behavior — given a question, how it decides what to write. Training changes the policy to produce better answers.
+- **Reward** — the score for a rollout. In our case, binary: 1 if the final number is correct, 0 if not. This is the only feedback the model gets.
+- **Rollout** — one complete attempt at answering a question. In GRPO we generate a *group* of rollouts per prompt (e.g. 8) so we can compare them.
+- **Step** — one full training cycle: generate rollouts → score them → update the policy.
+
+::: notes
+These are the foundational terms for the rest of the talk. Policy is just the model's behavior — its current strategy for answering questions. When we say "update the policy," we mean adjusting the model's weights so it behaves differently next time. Reward is the signal that tells the model how it did — in our case, did you get the right number? Yes = 1, no = 0. No partial credit, no style points. A rollout is one attempt — the model reads the question and writes out a complete answer. We generate multiple rollouts per prompt (a "group") so we have something to compare. A step is one complete loop through the pipeline: generate a batch of rollouts, score them, compute the loss, update the weights. When we say "the model converged in 29 steps," each step processed 2,048 rollouts and took about 70 seconds.
+:::
+
+# Key RL Concepts (2/3)
+
+- **Log Probs** — the model's confidence score for each token it generates. Close to 0 = very confident, large negative (like -10) = uncertain. We track these to measure how the model's behavior changes during training.
+- **Advantage** — "how much better was this attempt vs what I expected?" Positive = reinforce, negative = discourage, zero = learn nothing. Turns raw reward into a training signal.
+
+::: notes
+These six concepts are the building blocks of both PPO and GRPO — you need to understand them before comparing the two algorithms. This slide covers log probs and advantage.
+
+Log probs: Think of these as the model's receipt for every decision it made. When the model writes "The answer is 42", it chose one token at a time — "The", then "answer", then "is", then "42" — each with a confidence level. We only find out *after* the full answer whether it was right or wrong. So we need to go backwards and figure out which choices to reinforce. It's like a chef who cooks without tasting — they add salt, pepper, garlic, each a separate decision. A food critic tries the dish and says "great!" Now the chef needs to remember: what did I add, and how much? That memory is the log probs. Without it, the chef knows "the dish was good" but can't learn *which decisions* made it good. Log probs let the training algorithm say: answer was correct → increase the probability of those token choices. Answer was wrong → decrease them.
+
+When the model generates the token "18", it internally assigns a probability — say 0.73. The log prob is ln(0.73) = -0.31. If it's unsure and assigns 0.001, the log prob is -6.9. Why use log instead of raw probabilities? Two reasons. First, a sequence of 200 tokens has a joint probability that's the product of all individual token probabilities — something like 0.7 × 0.3 × 0.9 × ... which quickly becomes a tiny number like 10^-80 that computers can't represent. In log space, multiplication becomes addition: -0.36 + -1.2 + -0.1 + ... which stays in a normal numeric range. Second, the math of gradient descent works more naturally with logs — the policy gradient formula is literally defined in terms of log probabilities.
+
+We compare log probs from before and after a training update to compute the "importance ratio" — how much more or less likely is this token now? A ratio of 1.0 means unchanged, 1.5 means 50% more likely, 0.5 means half as likely.
+
+Advantage: Raw rewards are just 0 or 1 — right or wrong. But the model needs to know "was this answer good relative to what I usually do?" That's the advantage. If the model gets 6 out of 8 right, the correct answers have a small positive advantage (slightly above average) and the wrong ones have a larger negative advantage. If it only gets 1 out of 8 right, that one gets a huge positive advantage — it's the rare success the model should learn from.
+:::
+
+# Key RL Concepts (3/3)
+
+- **Clipping** — a safety rail on updates. Limits how much the model can change in one step. Without it, one lucky answer could swing the model so hard it forgets everything else.
+- **KL Penalty** — measures how far the model has drifted from its starting point. Small penalty each step prevents the model from wandering too far and collapsing into repetitive or degenerate outputs.
+
+::: notes
+Clipping: The importance ratio tells us how much the policy changed. Clipping caps this ratio to a range like [0.8, 1.2]. Say the model discovers that starting with "Let me think step by step" helps — without clipping, it might crank that probability from 10% to 95% in one step, destabilizing everything else. Clipping forces gradual change: 10% → 12% → 14.4%, giving the model time to adapt.
+
+KL penalty: Clipping limits each individual step, but the model can still drift far over many steps — like walking slowly but in the wrong direction for hours. KL divergence measures the total distance from the starting policy. Adding a small KL penalty to the loss function acts like a rubber band pulling the model back toward its original behavior. Too much KL penalty and the model never learns; too little and it collapses.
+:::
+
+# PPO vs GRPO
+
+| | PPO | GRPO |
+|---|---|---|
+| **Baseline** | Learned critic (value network) | Group average of rewards |
+| **Extra model** | Yes — train a separate value network | No — just compare rollouts to each other |
+| **Advantage** | GAE from critic predictions | `(reward_i - mean) / std` within group |
+| **Memory** | 2× model memory (actor + critic) | 1× model memory |
+| **Rollouts** | 1 per prompt | G per prompt (e.g. 8) — need group for comparison |
+| **Clipping** | Yes (clip ratio) | Yes (same PPO-style clipping) |
+| **KL penalty** | Optional | Yes — prevents drift from reference policy |
+| **Complexity** | Higher — critic has its own loss, learning rate, architecture | Lower — no critic to tune or debug |
+
+::: notes
+This is the key algorithmic difference between PPO and GRPO. In standard PPO, you train a separate neural network — the critic — that learns to predict "how good is this state?" That prediction becomes your baseline for computing advantages. The problem: the critic is itself a large model that needs training, doubles your GPU memory, and can be a source of instability if it learns a bad value estimate.
+
+GRPO — Group Relative Policy Optimization from DeepSeek — throws out the critic entirely. Instead, for each prompt you generate a group of completions (say 8), score them all, and compute each one's advantage relative to the group: (reward minus mean) divided by standard deviation. If 3 out of 8 got the right answer, those 3 get positive advantages and the 5 wrong ones get negative advantages. If all 8 got it right or all wrong, the advantage is zero and the model learns nothing from that prompt — which is exactly correct.
+
+Both algorithms use PPO-style clipping to limit how much the policy can change per step. GRPO adds a KL penalty to prevent long-term drift from the reference policy. The practical win is simplicity and memory: no critic to architect, tune, or debug, and you save 50% of GPU memory that would have gone to the value network. The tradeoff is you need multiple rollouts per prompt (we use 8), which costs more inference compute. For tasks with verifiable rewards like math — where checking the answer is free — GRPO is a clear win.
+:::
 
 # GRPO — Custom Trainer Data Flow
 
 ![](grpo_overview_custom.png){ width=100% }
 
 ::: notes
-This diagram shows exactly how our custom trainer implements GRPO. Let me walk through each component intuitively.
+This diagram maps the concepts from the previous slides onto our actual implementation. The prompt goes to the LLM, which generates 4 rollouts (group size 8 each) via a remote vLLM server. The environment service checks the final number and returns binary rewards (0 or 1). The trainer then computes log probs, advantages, clipped ratios, and KL penalty — all per-token as discussed earlier — and performs the gradient update. After the gradient step, weights sync back to vLLM every 3 steps via HTTP — a 22-second serialization of 3GB that became our biggest bottleneck.
 
-**Log probs** — Log probabilities measure how likely the model considers each generated token under its current parameters. For example, if the model is very confident about a token, the log prob is close to 0; if uncertain, it's a large negative number like -5 or -10. We compute these by running the model forward on each rollout and extracting the probability it assigns to each token it actually generated. In GRPO, we work with per-token log probs rather than summing them into a single sequence-level number.
+The key architectural constraint: vLLM runs in a separate process with its own CUDA context, so it can't join the trainer's NCCL process group. HTTP was the only communication path. We skip the frozen reference model to save GPU memory and instead use old_log_probs from generation time as the KL reference — a pragmatic tradeoff that works when the policy changes slowly between steps.
 
-**GRPO Advantages** — Rewards alone just tell us if an answer was right or wrong. Advantages tell us how each rollout did *relative to the group*. The formula is simple: A_i = (reward_i - mean) / std. If you got 4 rollouts with rewards [1, 1, 0, 0], the mean is 0.5, so correct answers get positive advantages (+0.87) and wrong ones get negative (-0.87). These values directly scale the gradients — positive advantages increase the likelihood of actions that produced that rollout, negative advantages decrease their likelihood, and if all rollouts got the same reward, advantages are zero and the model learns nothing. The "GR" in GRPO stands for "group relative" — we compare rollouts against each other rather than against a learned value function.
-
-**PPO Clipping** — The importance ratio (ratio = exp(new_log_prob - old_log_prob)) tells us how much the policy has changed since it generated the rollout. If old and new log probs are identical, the ratio is 1.0. Clipping limits how far the new policy can move from the old one in a single step. We clamp the ratio to [0.8, 1.2] and take the minimum of the clipped and unclipped objectives. Without clipping, a large ratio would scale the advantage substantially, leading to a very large gradient step that can destabilize training — the model shifts too far, token probabilities change drastically, and you get reward crashes or entropy collapse. Our clip range of 0.2 is much tighter than DeepSeek-R1's clip_eps of 10, because we operate per-token rather than at the sequence level.
-
-**KL Penalty** — KL divergence measures how much the current policy deviates from a reference. While clipping limits how large each individual step can be, the KL term controls drift over the full training trajectory. We use the Schulman estimator: (ratio - 1) - log(ratio), which is always non-negative and equals zero when ratio = 1 (policies match). This gets added to the loss weighted by kl_coef, so updates that push the model far from its reference behavior are penalized even if they improve reward. In our custom trainer, we skip the frozen reference model to save GPU memory and instead use old_log_probs from generation time as the reference — a pragmatic tradeoff that works when the policy changes slowly between steps.
-
-The prompt goes to the LLM, which generates 4 rollouts via a remote vLLM server. The environment service checks the final number and returns binary rewards. After the gradient step, weights sync back to vLLM every 3 steps.
-:::
-
-# DeepSeek R1 vs Our Setup
-
-| Parameter | DeepSeek R1 | Our Setup |
-|---|---|---|
-| Rollouts per prompt | 8,192 total pool | 8 per prompt × 32 prompts = 256 |
-| Mini-batches | 16 (512 rollouts each) | 1 (micro-batch of 4) |
-| Clip epsilon | 10.0 (very loose) | 0.2 (tight) |
-| KL reference update | Every 400 steps | N/A (uses old_log_probs) |
-| Model size | 671B (MoE) | 1.5B / 7B |
-| Group size (G) | Not explicitly stated, but large | 8 |
-
-::: notes
-This table puts our setup in perspective against DeepSeek R1. They generate a massive pool of 8,192 rollouts upfront and split it into 16 mini-batches of 512, updating the model after each mini-batch. We generate 256 rollouts per step (32 prompts × 8 rollouts each), process them in micro-batches of 4 for memory, and do one weight update at the end. Their clip epsilon of 10 is extremely permissive — the ratio can go from 0 to 11 — because they rely more on the KL term for stability. Our 0.2 is classic PPO-style tight clipping. They refresh the frozen reference model every 400 steps; we skip it entirely. Same algorithm, vastly different scale.
-:::
-
-# Two Approaches
-
-Built custom trainer first to learn GRPO internals, then switched to veRL for production.
-
-| | Custom Trainer | veRL Framework |
-|---|---|---|
-| Code | ~800 lines, hand-rolled | ~50 lines config |
-| Debug time | 12 hours, 5 attempts | Worked first try |
-| Throughput | 2,304 seq/hr | 104,448 seq/hr |
-| 1 epoch | ~26 hours | **35 minutes** |
-
-::: notes
-The custom trainer was a learning exercise — we wanted to understand every piece of the GRPO pipeline: how importance ratios work, how KL penalties interact with clipping, how to manage FSDP weights with vLLM. It took 5 attempts and 12 hours of debugging. veRL by ByteDance is a production framework that handles all of this out of the box. The throughput difference is 45x — mostly from colocated vLLM and much larger batch sizes.
+Our naive KL estimator — max(0, log(new/old)) — gave zero signal for 99% of steps because at low learning rates the log ratio is a tiny negative number that gets clamped away. Switching to the Schulman estimator — (ratio - 1) - log(ratio) — fixed this: it's always non-negative and catches drift in both directions without clamping.
 :::
 
 # Experiment 1: Custom Trainer — The Journey
@@ -203,10 +221,6 @@ Used `num_return_sequences=8` in HuggingFace `model.generate()` — generates al
 The key insight was that HuggingFace generate supports num_return_sequences — you give it one prompt and it generates 8 completions in a single forward pass, sharing the KV cache for the prompt tokens. This reduced 32 generate calls to 4 (one per prompt in the batch). 3x speedup to 1.5 minutes per step. Still not fast enough for a full epoch in our time window, but the reward was starting to trend upward — we could see the model learning.
 :::
 
-# Attempt 4: Training Progress
-
-![](../run-2026-02-19/training_progress_step18.png){ width=100% }
-
 # Attempt 5: vLLM Server
 
 Deployed vLLM as separate K8s pod with HTTP weight sync. **Crashed at step 50** — checkpoint save bug (`local_rank` vs `global_rank`).
@@ -234,20 +248,6 @@ vLLM is much faster than HuggingFace generate for inference — it uses PagedAtt
 
 ::: notes
 We got a 6x speedup through three rounds of optimization. But even at 72 steps per hour with only 32 sequences per step, the effective throughput was 2,304 sequences per hour. The fundamental problem wasn't speed per step — it was that we could only fit 4 prompts per batch due to memory constraints in our hand-rolled code. veRL solves this by properly managing GPU memory across phases.
-:::
-
-# Key Bugs Found
-
-| Bug | Impact | Fix |
-|-----|--------|-----|
-| Sequence-level importance ratio | KL explosion (194.8) | Per-token ratio |
-| `log_probs.mean()` | Wrong gradient signal | `.sum()` per sequence |
-| Checkpoint `local_rank == 0` | Crash on multi-node | `rank == 0` (global) |
-| vLLM inside torchrun | NCCL/CUDA deadlock | Separate vLLM pod |
-| Clamped KL estimator | KL = 0 for 99% of steps | Schulman estimator |
-
-::: notes
-These are the five most impactful bugs we found. The importance ratio bug was the showstopper — it made training diverge in one step. The log_probs mean vs sum bug meant the policy gradient was length-normalized, so short and long responses contributed equally regardless of sequence probability. The checkpoint bug only manifests on multi-node — local_rank 0 exists on every node, but only global rank 0 should save. The vLLM deadlock taught us that vLLM and NCCL can't coexist in the same process. And the clamped KL was giving zero penalty 99% of the time because the naive log ratio was slightly negative at low learning rates.
 :::
 
 # Experiment 2: veRL Framework
@@ -284,13 +284,13 @@ This is the training curve for Qwen2.5-1.5B. Reward climbs steadily from near ze
 
 | Step | Reward | KL |
 |------|--------|-----|
-| 0 (val) | 2.3% | — |
+| 0 (val) | 14.5% | — |
 | 10 | 44.5% | — |
 | 20 (val) | 72.3% | — |
 | 29 (val) | **72.7%** | — |
 
 ::: notes
-The eval was done on 200 random test problems with greedy decoding using the same chat template as training. Base model gets 14.5% — it can actually do math (56% with a non-chat prompt) but doesn't know the chat format. After GRPO training, it scores 77% — the model learned both the format and improved its reasoning. The 2.3% initial validation is lower than 14.5% because it was measured before any training with a slightly different eval setup. KL stayed very low throughout — 0.0007 at step 3, never spiking. veRL's implementation is rock solid.
+The eval was done on 200 random test problems with greedy decoding using the same chat template as training. Base model gets 14.5% with the chat template. After GRPO training, it scores 77% — the model learned both the format and improved its reasoning. KL stayed very low throughout — 0.0007 at step 3, never spiking. veRL's implementation is rock solid.
 :::
 
 # veRL: 7B Results
@@ -319,23 +319,22 @@ The 7B model is dramatically faster at learning. It went from 14.3% to 88% valid
 | Step time | 70s | 502s |
 
 ::: notes
-Both models start at roughly the same baseline — about 14% accuracy. But the 7B model reaches 70% in just 7 steps versus 20 for the 1.5B, and peaks at 88% versus 77%. The larger model has more capacity to represent complex reasoning patterns. The tradeoff is wall-clock time per step — 502 seconds versus 70 seconds — because the 7B model needs more memory (halving the batch size) and more compute for forward and backward passes. In total wall-clock time, the 7B took about 83 minutes to reach 88% while the 1.5B took 35 minutes to reach 77%.
+The 1.5B starts at 14.5% and the 7B at 14.3% baseline accuracy. The 7B model reaches 70% in just 7 steps versus 20 for the 1.5B, and peaks at 88% versus 77%. The larger model has more capacity to represent complex reasoning patterns. The tradeoff is wall-clock time per step — 502 seconds versus 70 seconds — because the 7B model needs more memory (halving the batch size) and more compute for forward and backward passes. In total wall-clock time, the 7B took about 83 minutes to reach 88% while the 1.5B took 35 minutes to reach 77%.
 :::
 
-# Custom Trainer vs veRL
+# Two Approaches
 
-**45× throughput** from colocated vLLM, memory management, and 64× larger batches.
+Built custom trainer first to learn GRPO internals, then switched to veRL for production.
 
-| | Custom | veRL |
+| | Custom Trainer | veRL Framework |
 |---|---|---|
-| Code | ~800 lines | ~50 lines |
-| Debug time | 5 attempts, 12h | First try |
-| Sequences/step | 32 | 2,048 |
+| Code | ~800 lines, hand-rolled | ~50 lines config |
+| Debug time | 12 hours, 5 attempts | Worked first try |
 | Throughput | 2,304 seq/hr | 104,448 seq/hr |
-| 1 epoch | ~26 hours | **35 min** |
+| 1 epoch | ~26 hours | **35 minutes** |
 
 ::: notes
-The 45x throughput difference comes from three things. First, colocated vLLM eliminates the 22-second HTTP weight sync. Second, veRL's phase-based memory management lets it fit 256 prompts per batch versus our 4 — that's 64x more sequences per step. Third, all 16 GPUs run vLLM in parallel during generation versus our single dedicated GPU. The custom trainer was invaluable for understanding the internals — we wouldn't have appreciated veRL's design without struggling through those 5 attempts. But for production training, there's no contest.
+The custom trainer was a learning exercise — we wanted to understand every piece of the GRPO pipeline: how importance ratios work, how KL penalties interact with clipping, how to manage FSDP weights with vLLM. It took 5 attempts and 12 hours of debugging. veRL by ByteDance is a production framework that handles all of this out of the box. The throughput difference is 45x — mostly from colocated vLLM and much larger batch sizes.
 :::
 
 # Infrastructure
@@ -353,6 +352,31 @@ The 45x throughput difference comes from three things. First, colocated vLLM eli
 
 ::: notes
 Everything runs on EKS in us-east-1. The GPU nodes are p4d.24xlarge instances with 8 A100 40GB GPUs each, connected via EFA for fast NCCL communication. We use capacity blocks for the GPU instances since they're expensive — about $32/hr per node. CPU nodes run the monitoring stack and environment service. KubeRay manages the Ray cluster for veRL. All infrastructure is Terraform-managed — no manual kubectl or console changes for persistent resources.
+:::
+
+# Ray Cluster & Kubernetes Config
+
+| Resource | Details |
+|----------|---------|
+| **RayCluster** | `verl-grpo` — head + 1 worker, Ray 2.44.1 |
+| **Head node** | 8 GPUs, 48 CPU, 600Gi memory, metrics sidecar on port 9090 |
+| **Worker node** | 8 GPUs, 48 CPU, 600Gi memory (identical to head) |
+| **Shared memory** | 200Gi `/dev/shm` per pod (NCCL inter-GPU comms) |
+| **Training script** | ConfigMap-mounted `run_grpo.sh` — all hyperparams via env vars |
+| **Storage** | gp3 StorageClass (EBS CSI), FSx Lustre for shared data |
+| **Networking** | EFA for RDMA between nodes, NCCL for GPU-to-GPU |
+| **Security** | IRSA — pod-level IAM for S3 checkpoints + CloudWatch |
+
+::: notes
+The Ray cluster is managed by KubeRay v1.3.0 deployed via Helm. The head and worker pods are identical — each gets a full p4d.24xlarge with 8 GPUs. The 200Gi shared memory emptyDir is critical — NCCL uses /dev/shm for inter-GPU communication within a node, and the default 64MB Kubernetes limit would cause silent failures.
+
+All training configuration lives in a ConfigMap: model name, batch size, learning rate, KL coefficient, clip range — everything is an environment variable, so we can change hyperparameters without rebuilding images. The `run_grpo.sh` script reads these and launches veRL with the right flags.
+
+For storage, we use two tiers: FSx for Lustre provides high-throughput shared storage for the dataset (ReadWriteMany across pods), while S3 stores checkpoints via IRSA — the pod assumes an IAM role that grants PutObject/GetObject on the checkpoint bucket, no AWS credentials baked into the image.
+
+EFA (Elastic Fabric Adapter) gives us 400 Gbps RDMA between the two GPU nodes — this is what makes NCCL all-reduce fast enough for distributed training. Without EFA, FSDP weight syncs over standard TCP would be a bottleneck. The Terraform module conditionally provisions 4 EFA interfaces per node and a security group that allows all traffic between EFA-enabled nodes.
+
+The NVIDIA device plugin runs as a DaemonSet on GPU nodes, exposing GPUs to the Kubernetes scheduler. Each pod requests `nvidia.com/gpu: 8` and the nodes are tainted with `nvidia.com/gpu=true:NoSchedule` so only GPU workloads land there.
 :::
 
 # Observability
@@ -375,24 +399,50 @@ Observability was critical — GPU training pods are ephemeral and expensive, so
 This is the actual Grafana dashboard from the 7B training run. You can see reward climbing rapidly in the first 10 steps then plateauing, KL staying stable throughout, step time rock-steady at 502 seconds, and GPU memory utilization near maximum. The dashboard auto-refreshes and was our primary monitoring tool during training — we could check progress from anywhere without needing kubectl access.
 :::
 
-# What We Learned: Implementation
+# What We Learned
 
-1. **Per-token ratios are critical** — sequence-level importance ratios explode exponentially
-2. **Schulman KL estimator** — naive KL with clamp gives zero signal at low learning rates
-3. **Batch size matters enormously** — 32 seq/step = noisy, 2,048 seq/step = smooth learning
-4. **Colocated inference is key** — separate vLLM pod adds 22s/sync; colocated = 0s
+| Bug / Lesson | Impact | Fix |
+|-----|--------|-----|
+| Sequence-level importance ratio | KL explosion (0.42 → 194.8 in one step) | Per-token ratio |
+| `log_probs.mean()` | Wrong gradient signal | `.sum()` per sequence |
+| Clamped KL estimator | KL = 0 for 99% of steps | Schulman estimator |
+| Checkpoint `local_rank == 0` | Crash on multi-node | `rank == 0` (global) |
+| vLLM inside torchrun | NCCL/CUDA deadlock | Separate vLLM pod → colocated in veRL |
+| 32 seq/step batch size | Noisy, unstable reward | 2,048 seq/step = smooth learning |
 
 ::: notes
-These are the engineering lessons. The per-token ratio bug was the most painful — it's subtle because sequence-level log probs are correct for the policy gradient, but the importance ratio must be per-token or it explodes. The Schulman KL estimator is a drop-in replacement that's always non-negative without clamping. Batch size was the biggest factor in training stability — 32 sequences per step gave us random-looking reward curves, while 2,048 gave smooth monotonic improvement. And colocating vLLM with the trainer eliminates the entire weight sync bottleneck.
+These are the key engineering lessons from building the custom trainer — each one cost us hours of debugging.
+
+The per-token ratio bug was the showstopper. Sequence-level log probs are correct for the policy gradient, but the importance ratio must be per-token or it explodes — even tiny per-token shifts of 0.01 accumulate over 200 tokens and exp() makes it astronomical.
+
+The log_probs mean vs sum bug meant the policy gradient was length-normalized, so short and long responses contributed equally regardless of sequence probability.
+
+The clamped KL estimator — max(0, log(new/old)) — gave zero penalty 99% of the time because at low learning rates the log ratio is a tiny negative number that gets clamped away. The Schulman estimator (ratio - 1) - log(ratio) is a drop-in replacement that's always non-negative without clamping.
+
+The checkpoint bug only manifests on multi-node — local_rank 0 exists on every node, but only global rank 0 should save. The vLLM deadlock taught us that vLLM and NCCL can't coexist in the same process.
+
+Batch size was the biggest factor in training stability — 32 sequences per step gave us random-looking reward curves, while veRL's 2,048 gave smooth monotonic improvement. And colocating vLLM with the trainer eliminates the entire weight sync bottleneck — 22 seconds per sync down to zero.
+
+The high-level takeaway: RL with a simple binary reward signal is enough to teach small models to reason about math — 1.5B went from 14.5% to 77%, no human solutions needed. And scale helps — the 7B model learns faster and reaches a higher ceiling (88% in 10 steps vs 29 steps for 77%). Both results were achieved in under 2 hours of GPU time on 16 A100s.
 :::
 
-# What We Learned: Results
+# DeepSeek R1 vs Our Setup
 
-5. **RL works** — a 1.5B model goes from 14.5% → 77% with just a reward signal, no solutions needed
-6. **Bigger models learn faster** — 7B hit 88% in 10 steps vs 1.5B needing 29 steps for 77%
+| Parameter | DeepSeek R1 | Custom Trainer | veRL |
+|---|---|---|---|
+| Rollouts/step | 8,192 | 256 (32×8) | 2,048 (256×8) |
+| Mini-batches | 16 (512 each) | 1 (micro-batch 4) | 4 (512 each) |
+| Clip epsilon | 10.0 (very loose) | 0.2 (tight) | 0.2 (tight) |
+| KL reference | Frozen model, refresh every 400 steps | old_log_probs (no ref model) | Frozen ref model on CPU |
+| Model size | 671B (MoE) | 1.5B | 1.5B / 7B |
+| Group size (G) | Not stated, but large | 8 | 8 |
 
 ::: notes
-The high-level takeaway: reinforcement learning with a simple binary reward signal is enough to teach small models to reason about math. No human-written solutions, no reward model, just "right or wrong." And scale helps — the 7B model learns faster and reaches a higher ceiling, even though each step is slower. Both results were achieved in under 2 hours of GPU time on 16 A100s.
+This table puts our setup in perspective against DeepSeek R1. The custom trainer column shows our hand-rolled implementation — 256 rollouts per step with micro-batches of 4 for memory. The veRL column shows the production setup — 2,048 rollouts per step, 8x more than our custom trainer and approaching the scale of DeepSeek's setup relative to model size.
+
+DeepSeek generates a massive pool of 8,192 rollouts upfront and splits it into 16 mini-batches of 512, updating the model after each mini-batch. Their clip epsilon of 10 is extremely permissive — the ratio can go from 0 to 11 — because they rely more on the KL term for stability. Our 0.2 is classic PPO-style tight clipping in both implementations.
+
+The biggest difference is the KL reference strategy. DeepSeek maintains a frozen copy of the model and refreshes it every 400 steps. Our custom trainer skipped the frozen model entirely to save GPU memory, using old_log_probs from generation time instead. veRL does it properly — the reference model lives on CPU and gets loaded to GPU briefly for each KL computation. Same algorithm, vastly different scale, but the core idea is identical.
 :::
 
 # What's Next: Task & Model
@@ -410,15 +460,12 @@ The high-level takeaway: reinforcement learning with a simple binary reward sign
 Code generation is the natural next step — the reward signal is just as clean as math (run the tests, pass or fail) but the reasoning is much harder. For infrastructure, the separate GPU pool architecture is what strategic customers training large models actually use in production. veRL's colocated time-sharing works great for small-to-mid models, but at scale (70B+, hundreds of GPUs), the phase transition overhead adds up — GPUs sit idle while switching between generation and training. The production pattern is: one pool of GPUs runs vLLM continuously for generation, another pool runs FSDP/Megatron for training, and weights are synced via RDMA over EFA. EFA gives 400 Gbps per node — syncing even a 70B model takes seconds, not minutes. The tradeoff is cost (2x GPUs) but both pools run at near 100% utilization, which is more efficient at scale than time-sharing where each pool is idle 50% of the time.
 :::
 
-# Summary
+# Try it for yourself
 
-All it takes is a binary reward signal and the right RL algorithm.
+<https://github.com/harishvs/rl_grpo_qwen_math>
 
-| Model | Before | After | Time |
-|-------|--------|-------|------|
-| Qwen2.5-1.5B | 14.5% | **77.0%** | 35 min |
-| Qwen2.5-7B | 14.3% | **88.0%** | ~83 min |
+![](qr_code.png)
 
 ::: notes
-To summarize: we took two small language models that could barely solve grade-school math and trained them to 77% and 88% accuracy using only a binary reward signal — no human-written solutions. The 1.5B model trained in 35 minutes, the 7B in about 83 minutes. Building the custom trainer taught us how GRPO works at every level, but veRL is what made the actual training feasible. The code for the custom trainer is about 800 lines; the veRL config is about 50 lines. Both are in the repo if you want to explore.
+The full code is open source. The custom trainer is about 800 lines — great for understanding how GRPO works at every level. The veRL config is about 50 lines — that's all you need for production training. Both are in the repo along with all the training logs, Grafana dashboards, and Terraform infrastructure code. Feel free to scan the QR code or grab the link.
 :::

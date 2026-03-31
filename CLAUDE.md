@@ -56,3 +56,6 @@
 
 - **Simplicity First**: Make every change as simple as possible. Impact minimal code.
 - **No Laziness**: Find root causes, avoid temporary fixes, and aim for senior developer standards.
+
+## Commit 
+- dont add Co-Authored-By: 

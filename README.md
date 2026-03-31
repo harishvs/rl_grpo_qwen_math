@@ -254,7 +254,7 @@ ref.fsdp_config.param_offload: True   # ref model on CPU
 
 | Step | Reward | KL | Step Time |
 |------|--------|-----|-----------|
-| 0 (val) | 2.3% | — | — |
+| 0 (val) | 14.5% | — | — |
 | 1 | 1.1% | 0.0001 | 76s |
 | 3 | 10.3% | 0.0007 | 73s |
 | 14 | 59.8% | — | 69s |
