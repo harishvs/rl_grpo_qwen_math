@@ -1,0 +1,69 @@
+flowchart TD
+    START([Start Training Step]) --> DATASET
+
+    subgraph "1. Data"
+        DATASET[DatasetActor.next_batch<br/>32 GSM8K prompts + ground truths]
+    end
+
+    DATASET --> GENERATE
+
+    subgraph "2. Generation"
+        GENERATE[GeneratorActor.generate<br/>vLLM in-process engine]
+        GENERATE --> COMPLETIONS[256 completions<br/>G=8 per prompt<br/>+ per-token log_probs]
+    end
+
+    COMPLETIONS --> SCORE
+
+    subgraph "3. Reward"
+        SCORE[RewardActor.score<br/>CPU pod, regex extraction]
+        SCORE --> REWARDS[256 binary rewards<br/>1.0 = correct, 0.0 = wrong]
+    end
+
+    REWARDS --> ADVANTAGE
+
+    subgraph "4. Advantages"
+        ADVANTAGE["compute_grpo_advantages()<br/>Per-group normalization"]
+        ADVANTAGE --> ADV_OUT["A_i = (r_i - mean) / std<br/>for each group of 8"]
+    end
+
+    ADV_OUT --> BUFFER
+
+    subgraph "5. Replay Buffer"
+        BUFFER[ReplayBufferActor.add<br/>Store episodes + policy version]
+        BUFFER --> SAMPLE[ReplayBufferActor.sample<br/>Respects max_policy_age]
+    end
+
+    SAMPLE --> TRAIN
+
+    subgraph "6. Policy Update"
+        TRAIN[LearnerActor.train_step<br/>8 FSDP ranks]
+        TRAIN --> FWD[Forward pass<br/>New log_probs]
+        FWD --> LOSS["PPO clipped loss<br/>ratio = exp(new - old)<br/>clip(ratio, 1±0.2) × advantage"]
+        LOSS --> KL["+ KL penalty<br/>β × KL(π_old ‖ π_new)"]
+        KL --> OPT["AdamW step<br/>grad clip = 1.0"]
+    end
+
+    OPT --> SYNC
+
+    subgraph "7. Weight Sync (every 3 steps)"
+        SYNC{Step % 3 == 0?}
+        SYNC -->|Yes| GATHER["LearnerActor.get_weights()<br/>FSDP summon_full_params<br/>~3GB bf16 state_dict"]
+        GATHER --> PUSH["GeneratorActor.update_weights()<br/>via EFA 400 Gbps"]
+        SYNC -->|No| SKIP[Skip]
+    end
+
+    PUSH --> LOG
+    SKIP --> LOG
+
+    subgraph "8. Metrics"
+        LOG["MetricsLogger.log()<br/>Prometheus :9090<br/>loss, KL, reward, clip_frac,<br/>grad_norm, step_time, throughput"]
+    end
+
+    LOG --> NEXT([Next Step])
+
+    style GENERATE fill:#e3f2fd
+    style SCORE fill:#fff8e1
+    style ADVANTAGE fill:#f3e5f5
+    style TRAIN fill:#e8f5e9
+    style GATHER fill:#fce4ec
+    style PUSH fill:#fce4ec

@@ -1,6 +1,11 @@
 # CLAUDE.md
 
-## 1. Plan Mode Default
+## 1. Code Collaboration Style
+- **For new code**: Pair-program style -- describe what you're about to write before writing it. Let the user adjust the approach, then write the code.
+- **For bug fixes**: Same pair-program style -- explain the root cause and proposed fix before changing code. Don't silently fix and retry.
+- **For already written code**: Create a code walkthrough doc explaining the implementation file by file with the reasoning behind each design choice.
+
+## 2. Plan Mode Default
 
 - Enter plan mode for any non-trivial task (3+ steps or architectural decisions).
 - If something goes sideways, stop and re-plan immediately — do not keep pushing.
@@ -24,6 +29,7 @@
 
 ## 4. Verification Before Done
 
+- Always write unit tests for new implementations.
 - Never mark a task complete without proving it works.
 - Diff behavior between main and your changes when relevant.
 - Ask yourself: “Would a staff engineer approve this?”
@@ -54,8 +60,14 @@
 
 ## Core Principles
 
+- **Use virtual environments**: Always use `venv` for installing Python packages. Never install with `--break-system-packages` or modify the system Python.
 - **Simplicity First**: Make every change as simple as possible. Impact minimal code.
 - **No Laziness**: Find root causes, avoid temporary fixes, and aim for senior developer standards.
+
+## Security
+- Never hardcode AWS account IDs, VPC IDs, subnet IDs, security group IDs, or capacity reservation IDs in code or manifests. Use placeholders (e.g., ACCOUNT_ID, vpc-REDACTED) or environment variables.
+- Never commit secrets, API keys, or credentials. Use IRSA, environment variables, or K8s Secrets.
+- Always use `*.tfvars` in .gitignore. Provide a `.tfvars.example` with dummy values instead.
 
 ## Commit 
 - dont add Co-Authored-By: 

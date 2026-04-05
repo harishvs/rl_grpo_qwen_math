@@ -1,0 +1,53 @@
+graph TB
+    subgraph "Your Code"
+        CTRL[main.py<br/>Controller]
+        ACTORS_CODE[Actor classes<br/>generator.py, learner.py,<br/>reward_actor.py, dataset_actor.py,<br/>replay_buffer.py]
+    end
+
+    subgraph "Monarch Framework"
+        direction TB
+
+        subgraph "Actor System"
+            ACTOR[Actor base class<br/>Isolated state, mailbox]
+            EP["@endpoint decorator<br/>Public API methods"]
+            SUPER[Supervision trees<br/>Fault tolerance]
+        end
+
+        subgraph "Mesh System"
+            HOST[HostMesh<br/>Collection of machines]
+            PROC[ProcMesh<br/>Grid of processes<br/>hosts × gpus]
+            AMESH[ActorMesh<br/>Actors spawned<br/>across ProcMesh]
+        end
+
+        subgraph "Communication"
+            CALL1[".call_one&#40;&#41;<br/>Single actor, wait"]
+            CALL[".call&#40;&#41;<br/>Broadcast, collect all"]
+            BCAST[".broadcast&#40;&#41;<br/>Fire and forget"]
+            RDMA[RDMABuffer<br/>Zero-copy memory access]
+        end
+
+        subgraph "Job Provisioning"
+            LOCAL[LocalJob<br/>this_host&#40;&#41;]
+            SLURM[SlurmJob<br/>HPC clusters]
+            K8S[KubernetesJob<br/>MonarchMesh CRD]
+        end
+    end
+
+    CTRL --> ACTOR
+    ACTORS_CODE --> EP
+    CTRL --> HOST
+    HOST --> PROC
+    PROC --> AMESH
+    AMESH --> CALL1 & CALL & BCAST
+    ACTOR --> SUPER
+    K8S --> HOST
+
+    style ACTOR fill:#e1f5fe
+    style EP fill:#e1f5fe
+    style PROC fill:#fff3e0
+    style AMESH fill:#fff3e0
+    style CALL1 fill:#e8f5e9
+    style CALL fill:#e8f5e9
+    style BCAST fill:#e8f5e9
+    style RDMA fill:#e8f5e9
+    style K8S fill:#fce4ec

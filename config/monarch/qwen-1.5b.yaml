@@ -1,0 +1,41 @@
+# Monarch GRPO training config for Qwen2.5-1.5B on GSM8K
+# Hyperparameters match the proven veRL config (14.5% -> 77% accuracy)
+model: Qwen/Qwen2.5-1.5B
+experiment_name: monarch-qwen1.5b
+
+data:
+  train_batch_size: 256
+  max_prompt_length: 512
+  max_response_length: 1024
+  dataset_name: openai/gsm8k
+
+learner:
+  mini_batch_size: 128
+  micro_batch_size_per_gpu: 16
+  lr: 5e-6
+  kl_coef: 0.1
+  clip_range: 0.2
+  max_grad_norm: 1.0
+  gradient_checkpointing: true
+  fsdp_sharding: FULL_SHARD
+  mixed_precision: bf16
+
+generator:
+  gpu_memory_utilization: 0.5
+  tensor_parallel_size: 1
+  group_size: 8
+  temperature: 1.0
+  top_p: 1.0
+
+ref:
+  enabled: true
+  param_offload: true
+
+trainer:
+  n_gpus_per_node: 8
+  nnodes: 2
+  total_epochs: 1
+  save_freq: 20
+  test_freq: 10
+  weight_sync_interval: 3
+  checkpoint_dir: /checkpoints

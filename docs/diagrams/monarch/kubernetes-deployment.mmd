@@ -1,0 +1,73 @@
+graph TB
+    subgraph "EKS Cluster (us-east-1)"
+        subgraph "monarch-system namespace"
+            OP[MonarchMesh Operator<br/>Helm chart<br/>Watches MonarchMesh CRDs]
+        end
+
+        subgraph "default namespace"
+            subgraph "GPU Node 0 — p4d.24xlarge (8x A100 40GB)"
+                subgraph "Pod: grpo-monarch-0"
+                    CTRL_C[Container: monarch-worker]
+                    CTRL_C --> MAIN[main.py — Controller]
+                    CTRL_C --> LRN_P[LearnerActor × 8 ranks<br/>FSDP Qwen2.5-1.5B]
+                    CTRL_C --> DS_P[DatasetActor]
+                    CTRL_C --> RB_P[ReplayBufferActor]
+                    CTRL_C --> PROM1[Prometheus :9090]
+
+                    VOL1["/dev/shm — 200Gi<br/>emptyDir Memory"]
+                    VOL2["/scripts — ConfigMap"]
+                    VOL3["/config — ConfigMap"]
+                    VOL4["/checkpoints — 100Gi"]
+                end
+            end
+
+            subgraph "GPU Node 1 — p4d.24xlarge (8x A100 40GB)"
+                subgraph "Pod: grpo-monarch-1"
+                    GEN_C[Container: monarch-worker]
+                    GEN_C --> GEN_P[GeneratorActor<br/>vLLM engine<br/>gpu_memory_util=0.5]
+                    GEN_C --> REF_P[Reference Model<br/>CPU param offload]
+
+                    VOL5["/dev/shm — 200Gi<br/>emptyDir Memory"]
+                end
+            end
+
+            subgraph "CPU Node — c7i.large"
+                subgraph "Deployment: monarch-reward"
+                    RW_C[Container: monarch-worker]
+                    RW_C --> RW_P[RewardActor<br/>regex extraction<br/>no GPU]
+                end
+            end
+
+            SA[ServiceAccount: monarch-trainer-sa<br/>IRSA → IAM Role]
+            CM1[ConfigMap: monarch-scripts<br/>run_training.py, prep_data.py]
+            CM2[ConfigMap: monarch-config<br/>qwen-1.5b.yaml]
+        end
+
+        subgraph "monitoring namespace"
+            PROMETHEUS[Prometheus<br/>Scrapes :9090]
+            GRAFANA[Grafana<br/>Dashboards]
+            PROMETHEUS --> GRAFANA
+        end
+    end
+
+    subgraph "AWS Infrastructure (Terraform)"
+        EFA[EFA — 400 Gbps RDMA<br/>4 interfaces per node]
+        S3[S3 Bucket<br/>Checkpoints]
+        ECR[ECR Registry<br/>monarch-grpo image]
+        IAM[IAM Role<br/>S3 + CloudWatch access]
+    end
+
+    OP -->|"Creates"| CTRL_C
+    OP -->|"Creates"| GEN_C
+    LRN_P <-->|"Weight sync<br/>~3GB via EFA"| GEN_P
+    PROM1 --> PROMETHEUS
+    SA --> IAM
+    IAM --> S3
+    ECR -->|"Image pull"| CTRL_C & GEN_C & RW_C
+
+    style LRN_P fill:#e8f5e9
+    style GEN_P fill:#e3f2fd
+    style RW_P fill:#fff8e1
+    style EFA fill:#fce4ec
+    style S3 fill:#f3e5f5
+    style OP fill:#e1f5fe

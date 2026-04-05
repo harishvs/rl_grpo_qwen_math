@@ -1,0 +1,72 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: monarch-scripts
+data:
+  run_training.py: |
+    """Wrapper to launch Monarch GRPO training inside the pod."""
+    import sys
+    sys.path.insert(0, "/app")
+    from src.monarch.main import main
+    import asyncio
+    config_path = sys.argv[1] if len(sys.argv) > 1 else "/config/qwen-1.5b.yaml"
+    asyncio.run(main(config_path))
+
+  prep_data.py: |
+    """Prep GSM8K into local format for quick access."""
+    import os, re, datasets
+    def extract_solution(s):
+        m = re.search(r"#### (\-?[0-9\.\,]+)", s)
+        assert m is not None
+        return m.group(1).replace(",", "")
+    ds = datasets.load_dataset("openai/gsm8k", "main")
+    os.makedirs("/data/gsm8k", exist_ok=True)
+    ds["train"].to_json("/data/gsm8k/train.json")
+    ds["test"].to_json("/data/gsm8k/test.json")
+    print("Data prep done")
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: monarch-config
+data:
+  qwen-1.5b.yaml: |
+    model: Qwen/Qwen2.5-1.5B
+    experiment_name: monarch-qwen1.5b
+
+    data:
+      train_batch_size: 256
+      max_prompt_length: 512
+      max_response_length: 1024
+      dataset_name: openai/gsm8k
+
+    learner:
+      mini_batch_size: 128
+      micro_batch_size_per_gpu: 16
+      lr: 5e-6
+      kl_coef: 0.1
+      clip_range: 0.2
+      max_grad_norm: 1.0
+      gradient_checkpointing: true
+      fsdp_sharding: FULL_SHARD
+      mixed_precision: bf16
+
+    generator:
+      gpu_memory_utilization: 0.5
+      tensor_parallel_size: 1
+      group_size: 8
+      temperature: 1.0
+      top_p: 1.0
+
+    ref:
+      enabled: true
+      param_offload: true
+
+    trainer:
+      n_gpus_per_node: 8
+      nnodes: 2
+      total_epochs: 1
+      save_freq: 20
+      test_freq: 10
+      weight_sync_interval: 3
+      checkpoint_dir: /checkpoints

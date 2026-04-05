@@ -4,6 +4,14 @@
 terraform {
   required_version = ">= 1.0"
 
+  backend "s3" {
+    bucket         = "rl-code-llm-training-tfstate-dev"
+    key            = "environments/dev/terraform.tfstate"
+    region         = "us-east-1"
+    dynamodb_table = "rl-code-llm-training-tflock-dev"
+    encrypt        = true
+  }
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"

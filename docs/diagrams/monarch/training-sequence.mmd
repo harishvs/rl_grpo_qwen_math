@@ -1,0 +1,41 @@
+sequenceDiagram
+    participant DS as DatasetActor<br/>(CPU, Node 0)
+    participant GEN as GeneratorActor<br/>(8 GPU, Node 1)
+    participant RW as RewardActor<br/>(CPU Pod)
+    participant RB as ReplayBuffer<br/>(CPU, Node 0)
+    participant LRN as LearnerActor<br/>(8 GPU FSDP, Node 0)
+    participant CTRL as Controller<br/>(main.py, Node 0)
+
+    loop Every training step
+        CTRL->>DS: next_batch(32 prompts)
+        DS-->>CTRL: prompts + ground_truths
+
+        CTRL->>GEN: generate(prompts, G=8)
+        GEN-->>CTRL: 256 completions + log_probs
+
+        CTRL->>RW: score(completions, ground_truths)
+        RW-->>CTRL: 256 binary rewards (0.0/1.0)
+
+        CTRL->>CTRL: compute_grpo_advantages()
+
+        CTRL->>RB: add(episodes, policy_version)
+
+        CTRL->>RB: sample(batch_size, current_version)
+        RB-->>CTRL: training batch
+
+        CTRL->>LRN: train_step(batch)
+        Note over LRN: Forward + backward<br/>PPO clip + KL penalty<br/>AdamW optimizer step
+        LRN-->>CTRL: metrics (loss, KL, clip_fraction)
+
+        alt Every 3 steps
+            CTRL->>LRN: get_weights()
+            LRN-->>CTRL: serialized state_dict (~3GB)
+            CTRL->>GEN: update_weights(state_dict)
+            Note over GEN: Load new weights<br/>via EFA (400 Gbps)
+        end
+
+        alt Every 20 steps
+            CTRL->>LRN: save_checkpoint(path)
+            Note over LRN: FSDP summon_full_params<br/>Save HF format
+        end
+    end

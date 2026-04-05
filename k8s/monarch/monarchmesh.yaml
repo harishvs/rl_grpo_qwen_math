@@ -1,0 +1,80 @@
+apiVersion: monarch.pytorch.org/v1alpha1
+kind: MonarchMesh
+metadata:
+  name: grpo-monarch
+  labels:
+    app: monarch-grpo
+spec:
+  replicas: 2
+  podTemplate:
+    serviceAccountName: monarch-trainer-sa
+    nodeSelector:
+      node-type: gpu
+    containers:
+    - name: monarch-worker
+      image: ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/rl-code-llm-training-dev/monarch-grpo:latest
+      resources:
+        limits:
+          nvidia.com/gpu: "8"
+          memory: 800Gi
+          cpu: "90"
+        requests:
+          nvidia.com/gpu: "8"
+          memory: 600Gi
+          cpu: "48"
+      command: ["python", "-u", "-c"]
+      args:
+      - |
+        import os, socket
+        from monarch.actor import run_worker_loop_forever
+        port = os.environ.get("MONARCH_PORT", "26600")
+        address = f"tcp://{socket.getfqdn()}:{port}"
+        print(f"Monarch worker listening on {address}", flush=True)
+        run_worker_loop_forever(address=address, ca="trust_all_connections")
+      env:
+      - name: MONARCH_PORT
+        value: "26600"
+      - name: NCCL_DEBUG
+        value: WARN
+      - name: HF_HOME
+        value: /tmp/hf_cache
+      - name: FI_EFA_USE_DEVICE_RDMA
+        value: "1"
+      - name: FI_PROVIDER
+        value: efa
+      ports:
+      - containerPort: 9090
+        name: metrics
+        protocol: TCP
+      volumeMounts:
+      - name: scripts
+        mountPath: /scripts
+      - name: config
+        mountPath: /config
+      - name: dshm
+        mountPath: /dev/shm
+      - name: data
+        mountPath: /data
+      - name: checkpoints
+        mountPath: /checkpoints
+    volumes:
+    - name: scripts
+      configMap:
+        name: monarch-scripts
+        defaultMode: 0755
+    - name: config
+      configMap:
+        name: monarch-config
+    - name: dshm
+      emptyDir:
+        medium: Memory
+        sizeLimit: 200Gi
+    - name: data
+      emptyDir: {}
+    - name: checkpoints
+      emptyDir:
+        sizeLimit: 100Gi
+    tolerations:
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule
