@@ -23,4 +23,7 @@ Build_a_Reasoning_Model_(From_Scratch)*
 grpo-math-training-final.pptx
 docs/FAQ.md
 src/__pycache__/__init__.cpython-312.pyc
-src/__pycache__/__init__.cpython-312.pyc
+
+logs/
+*.tfvars
+*.tfstate.*.backup
