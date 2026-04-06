@@ -111,6 +111,52 @@ torch.OutOfMemoryError: Tried to allocate 10.09 GiB. GPU 0 has 39.49 GiB total, 
 | 10 | HF gradient checkpointing no effect | Doesn't compose with FSDP2 | PyTorch `apply_activation_checkpointing` |
 | 11 | `ValueMesh` not subscriptable | `.call()` returns ValueMesh, not list | Use `.values()[0]` |
 | 12 | OOM during backward (step 2) | 32 samples per rank → huge activation memory | Micro-batching: 4 samples per forward+backward |
+| 13 | vLLM `model_executor` AttributeError | vLLM 0.19 removed `model_executor` path | Use `engine.apply_model()` public API |
+| 14 | `apply_model` function not serializable | vLLM rejects closures by default | Set `VLLM_ALLOW_INSECURE_SERIALIZATION=1` before vLLM init |
+| 15 | `reload_weights` treats path as HF repo | vLLM's `reload_weights(weights_path=)` calls `from_pretrained` | Abandoned file-based approach, use `apply_model` instead |
+| 16 | `load_state_dict` DTensor mismatch | FSDP state_dict contains DTensors, vLLM expects regular tensors | Convert via `full_tensor().cpu()` in `get_weights`, also defensive conversion in generator |
+
+## Training Running End-to-End (attempt 6)
+
+After fixing all 16 issues, training runs continuously:
+
+```
+step:0 | loss=-0.0003 | reward=0.1523 | 57.1s (vLLM warmup)
+step:1 | loss=-0.0005 | reward=0.1211 | 10.1s | 25.4 samples/sec
+step:2 | loss=7.4175  | reward=0.1484 | 10.1s | 25.4 samples/sec
+step:3 | loss=0.0002  | reward=0.1367 | 68.5s (weight sync)
+step:4 | loss=0.0008  | reward=0.1172 | 10.3s | 24.9 samples/sec
+step:5 | loss=0.0079  | reward=0.1641 | 9.7s  | 26.4 samples/sec
+step:6 | loss=0.8122  | reward=0.1641 | 67.1s (weight sync)
+step:7 | loss=0.0284  | reward=0.1602 | 9.8s  | 26.1 samples/sec
+step:8 | loss=1.1400  | reward=0.1484 | 9.3s  | 27.5 samples/sec
+```
+
+- Normal steps: ~10s, 25-27 samples/sec
+- Weight sync steps (every 3): ~68s (includes FSDP gather + serialize 3GB + transfer + vLLM reload)
+- GPU memory: 7-9 GiB per learner rank (down from 40 GiB)
+- Reward: ~15% (expected for untrained model)
+
+## Hyperparameter Tuning (attempt 7)
+
+KL divergence was spiking (0.0005 → 74.2 → 11.4) due to large policy updates.
+
+**Changes**: lr 5e-6→1e-6, kl_coef 0.1→0.2, clip_range 0.2→0.1
+
+**Result**: KL 10x more stable. One mild spike (5.2 at step 2) then settled to 0.0005-0.006.
+Grad norms still occasionally high (1312 at step 6) but tighter clipping prevents KL blow-up.
+
+```
+step:0 | kl=0.0005 | reward=0.1211 | 58.6s
+step:1 | kl=0.0006 | reward=0.1367 | 9.8s  | 26.2 samples/sec
+step:2 | kl=5.2392 | reward=0.1172 | 9.9s  (one spike)
+step:3 | kl=0.0005 | reward=0.1172 | 66.1s (weight sync)
+step:4 | kl=0.0012 | reward=0.1016 | 10.9s
+step:5 | kl=0.0063 | reward=0.1523 | 9.9s
+step:6 | kl=0.0011 | reward=0.1406 | 65.7s (weight sync)
+step:7 | kl=0.0008 | reward=0.1367 | 9.6s
+step:8 | kl=0.0005 | reward=0.1680 | 8.9s  | 28.7 samples/sec
+```
 
 ## Key Learnings
 

@@ -26,6 +26,8 @@ class GeneratorActor(Actor):
         max_tokens: int = 1024,
         trust_remote_code: bool = True,
     ):
+        import os
+        os.environ["VLLM_ALLOW_INSECURE_SERIALIZATION"] = "1"
         from vllm import LLM, SamplingParams
 
         self.model_name = model_name
@@ -115,11 +117,20 @@ class GeneratorActor(Actor):
         buffer = io.BytesIO(state_dict_bytes)
         state_dict = torch.load(buffer, map_location="cpu", weights_only=True)
 
-        # vLLM 0.19+ apply_model: run a function directly on the model inside the worker
-        def _load_weights(model):
-            model.load_state_dict(state_dict, strict=False)
+        # Convert any DTensors (from FSDP) to regular tensors for vLLM
+        clean_state_dict = {}
+        for k, v in state_dict.items():
+            if hasattr(v, 'full_tensor'):
+                clean_state_dict[k] = v.full_tensor().cpu()
+            elif hasattr(v, '_local_tensor'):
+                clean_state_dict[k] = v._local_tensor.cpu()
+            else:
+                clean_state_dict[k] = v.cpu() if hasattr(v, 'cpu') else v
 
-        self.engine.apply_model(_load_weights)
+        def _load(model):
+            model.load_state_dict(clean_state_dict, strict=False)
+
+        self.engine.apply_model(_load)
         self.policy_version = version
 
     @endpoint

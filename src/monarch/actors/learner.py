@@ -239,10 +239,14 @@ class LearnerActor(Actor):
     @endpoint
     async def get_weights(self) -> bytes:
         """Gather full state dict and serialize for weight sync."""
-        # Composable FSDP state_dict() gathers shards automatically
-        state_dict = {
-            k: v.cpu().clone() for k, v in self.model.state_dict().items()
-        }
+        # Composable FSDP state_dict() gathers shards automatically.
+        # Convert DTensors to plain tensors so vLLM can load them.
+        state_dict = {}
+        for k, v in self.model.state_dict().items():
+            if hasattr(v, 'full_tensor'):
+                state_dict[k] = v.full_tensor().cpu().clone()
+            else:
+                state_dict[k] = v.detach().cpu().clone()
         buffer = io.BytesIO()
         torch.save(state_dict, buffer)
         return buffer.getvalue()
