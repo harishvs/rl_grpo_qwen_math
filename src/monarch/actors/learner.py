@@ -45,17 +45,14 @@ class LearnerActor(Actor):
 
     @endpoint
     async def initialize(self) -> str:
-        """Set up NCCL process group, load model with FSDP.
+        """Set up NCCL process group, load actor + reference models with FSDP.
 
         Must be called after spawn. Env vars are already set by
         setup_torch_elastic_env() on the proc mesh.
         """
         from transformers import AutoModelForCausalLM, AutoTokenizer
-        from torch.distributed._composable.fsdp import fully_shard
+        from torch.distributed._composable.fsdp import fully_shard, CPUOffloadPolicy
 
-        # Init NCCL -- env vars (RANK, WORLD_SIZE, MASTER_ADDR, MASTER_PORT)
-        # were set by setup_torch_elastic_env() before spawn
-        # Reduce CUDA memory fragmentation
         os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
         if not dist.is_initialized():
@@ -64,20 +61,17 @@ class LearnerActor(Actor):
         local_rank = int(os.environ.get("LOCAL_RANK", 0))
         torch.cuda.set_device(local_rank)
 
-        # Load model on CPU -- fully_shard() handles CPU→CUDA movement
+        # --- Actor model (trainable, FSDP on GPU) ---
         model = AutoModelForCausalLM.from_pretrained(
             self.model_name,
             torch_dtype=torch.bfloat16,
             attn_implementation="sdpa",
         )
 
-        # Composable FSDP -- shards weights across all ranks
         for layer in model.model.layers:
             fully_shard(layer, reshard_after_forward=True)
         fully_shard(model, reshard_after_forward=False)
 
-        # PyTorch activation checkpointing (HF's gradient_checkpointing_enable
-        # does NOT compose with FSDP2 -- has zero effect on memory)
         if self.gradient_checkpointing:
             from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import apply_activation_checkpointing
             from transformers.models.qwen2.modeling_qwen2 import Qwen2DecoderLayer
@@ -94,6 +88,25 @@ class LearnerActor(Actor):
             weight_decay=0.01,
         )
 
+        # --- Reference model (frozen, FSDP with CPU param offload) ---
+        # Params live on CPU, moved to GPU only during forward pass.
+        # Same approach as veRL's ref.fsdp_param_offload: true
+        ref_model = AutoModelForCausalLM.from_pretrained(
+            self.model_name,
+            torch_dtype=torch.bfloat16,
+            attn_implementation="sdpa",
+        )
+        ref_model.eval()
+        for p in ref_model.parameters():
+            p.requires_grad = False
+
+        offload = CPUOffloadPolicy()
+        for layer in ref_model.model.layers:
+            fully_shard(layer, reshard_after_forward=True, offload_policy=offload)
+        fully_shard(ref_model, reshard_after_forward=True, offload_policy=offload)
+
+        self.ref_model = ref_model
+
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
@@ -102,15 +115,16 @@ class LearnerActor(Actor):
         world_size = dist.get_world_size()
         return f"rank {rank}/{world_size} initialized on cuda:{local_rank}"
 
-    def _compute_log_probs(
+    def _forward_log_probs(
         self,
+        model: nn.Module,
         input_ids: torch.Tensor,
         attention_mask: torch.Tensor,
         response_start_indices: List[int],
     ) -> List[torch.Tensor]:
-        """Compute per-token log probs for the response portion only."""
+        """Compute per-token log probs for the response portion using given model."""
         with torch.amp.autocast("cuda", dtype=torch.bfloat16):
-            outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, use_cache=False)
+            outputs = model(input_ids=input_ids, attention_mask=attention_mask, use_cache=False)
 
         logits = outputs.logits
         log_probs_all = torch.log_softmax(logits, dim=-1)
@@ -118,13 +132,21 @@ class LearnerActor(Actor):
         per_sequence_logps = []
         for i in range(input_ids.shape[0]):
             start = response_start_indices[i]
-            # Shift: predict token t+1 from position t
             token_ids = input_ids[i, start:]
             logps = log_probs_all[i, start - 1:-1]
             gathered = logps.gather(-1, token_ids.unsqueeze(-1)).squeeze(-1)
             per_sequence_logps.append(gathered)
 
         return per_sequence_logps
+
+    def _compute_log_probs(self, input_ids, attention_mask, response_start_indices):
+        """Compute per-token log probs using the actor model."""
+        return self._forward_log_probs(self.model, input_ids, attention_mask, response_start_indices)
+
+    def _compute_ref_log_probs(self, input_ids, attention_mask, response_start_indices):
+        """Compute per-token log probs using the frozen reference model (CPU offloaded)."""
+        with torch.no_grad():
+            return self._forward_log_probs(self.ref_model, input_ids, attention_mask, response_start_indices)
 
     @endpoint
     async def train_step(self, batch: dict) -> dict:
@@ -194,18 +216,28 @@ class LearnerActor(Actor):
                 response_start_indices,
             )
 
+            # Reference model log probs for KL (CPU offloaded, no grad)
+            ref_log_probs_list = self._compute_ref_log_probs(
+                full_encodings["input_ids"],
+                full_encodings["attention_mask"],
+                response_start_indices,
+            )
+
             mb_loss = torch.tensor(0.0, device=device)
             for i in range(len(mb_prompts)):
                 new_logps = new_log_probs_list[i]
                 old_logps = torch.tensor(mb_old_logps[i], device=device)
+                ref_logps = ref_log_probs_list[i].detach()
                 advantage = mb_advantages[i]
 
-                min_len = min(len(new_logps), len(old_logps))
+                min_len = min(len(new_logps), len(old_logps), len(ref_logps))
                 if min_len == 0:
                     continue
                 new_logps = new_logps[:min_len]
                 old_logps = old_logps[:min_len]
+                ref_logps = ref_logps[:min_len]
 
+                # PPO ratio and clipping (against generation-time log probs)
                 ratio = (new_logps - old_logps).exp()
                 clipped_ratio = torch.clamp(ratio, 1 - self.clip_range, 1 + self.clip_range)
 
@@ -213,14 +245,17 @@ class LearnerActor(Actor):
                 surr2 = clipped_ratio * advantage
                 ppo_loss = -torch.min(surr1, surr2).mean()
 
-                kl = (ratio - 1) - (new_logps - old_logps)
+                # KL against frozen reference (detached — monitoring only)
+                ref_ratio = (new_logps.detach() - ref_logps).exp()
+                kl = (ref_ratio - 1) - torch.log(ref_ratio)
                 kl_loss = kl.mean()
 
-                mb_loss += ppo_loss + self.kl_coef * kl_loss
+                # Loss = PPO clipped objective only. KL is for monitoring.
+                mb_loss += ppo_loss
                 total_clip_fraction += (
                     (ratio < 1 - self.clip_range) | (ratio > 1 + self.clip_range)
                 ).float().mean().item()
-                total_kl += kl.mean().item()
+                total_kl += kl_loss.item()
                 n_tokens += min_len
 
             # Scale by fraction of total batch and backward (accumulates grads)

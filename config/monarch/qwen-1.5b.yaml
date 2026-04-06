@@ -12,9 +12,9 @@ data:
 learner:
   mini_batch_size: 128
   micro_batch_size_per_gpu: 16
-  lr: 1e-6
-  kl_coef: 0.2
-  clip_range: 0.1
+  lr: 5e-6
+  kl_coef: 0.1
+  clip_range: 0.2
   max_grad_norm: 1.0
   gradient_checkpointing: true
   fsdp_sharding: FULL_SHARD
