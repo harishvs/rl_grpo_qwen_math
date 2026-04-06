@@ -162,8 +162,15 @@ class LearnerActor(Actor):
         n_tokens = 0
         n_sequences = max(len(prompts), 1)
 
-        # Micro-batch loop: forward + backward per chunk, gradients accumulate
-        for mb_start in range(0, len(prompts), micro_bs):
+        # Micro-batch loop: forward + backward per chunk, gradients accumulate.
+        # Disable FSDP gradient sync for all but the last micro-batch —
+        # otherwise FSDP all-reduces at each .backward(), averaging prematurely.
+        n_micro_batches = (len(prompts) + micro_bs - 1) // micro_bs
+
+        for mb_idx, mb_start in enumerate(range(0, len(prompts), micro_bs)):
+            is_last_mb = (mb_idx == n_micro_batches - 1)
+            self.model.set_requires_gradient_sync(is_last_mb)
+
             mb_end = min(mb_start + micro_bs, len(prompts))
             mb_prompts = prompts[mb_start:mb_end]
             mb_completions = completions[mb_start:mb_end]

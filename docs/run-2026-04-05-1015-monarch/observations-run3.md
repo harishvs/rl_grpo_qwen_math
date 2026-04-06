@@ -115,6 +115,8 @@ torch.OutOfMemoryError: Tried to allocate 10.09 GiB. GPU 0 has 39.49 GiB total, 
 | 14 | `apply_model` function not serializable | vLLM rejects closures by default | Set `VLLM_ALLOW_INSECURE_SERIALIZATION=1` before vLLM init |
 | 15 | `reload_weights` treats path as HF repo | vLLM's `reload_weights(weights_path=)` calls `from_pretrained` | Abandoned file-based approach, use `apply_model` instead |
 | 16 | `load_state_dict` DTensor mismatch | FSDP state_dict contains DTensors, vLLM expects regular tensors | Convert via `full_tensor().cpu()` in `get_weights`, also defensive conversion in generator |
+| 17 | FSDP gradient sync during micro-batch accumulation | Every `.backward()` triggers all-reduce, averaging gradients prematurely instead of accumulating | `self.model.set_requires_gradient_sync(False)` for all but last micro-batch |
+| 18 | `set_requires_gradient_sync` import error | Not a standalone function in PyTorch 2.10, it's a method on the FSDP-wrapped module | Use `self.model.set_requires_gradient_sync(bool)` (method, not function) |
 
 ## Training Running End-to-End (attempt 6)
 
@@ -157,6 +159,15 @@ step:6 | kl=0.0011 | reward=0.1406 | 65.7s (weight sync)
 step:7 | kl=0.0008 | reward=0.1367 | 9.6s
 step:8 | kl=0.0005 | reward=0.1680 | 8.9s  | 28.7 samples/sec
 ```
+
+After 63 steps, reward did not climb (flat at 11-17%). KL still spiking occasionally.
+Root cause: FSDP gradient sync bug — every micro-batch `.backward()` triggered
+all-reduce, averaging gradients prematurely. Effectively reduced batch size and
+added noise, preventing the model from learning.
+
+Fix: `set_requires_gradient_sync(model, False)` for all but last micro-batch.
+Only the final micro-batch triggers the all-reduce, so gradients accumulate
+correctly across micro-batches before being averaged across ranks.
 
 ## Key Learnings
 
