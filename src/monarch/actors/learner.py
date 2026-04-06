@@ -1,10 +1,12 @@
-"""LearnerActor -- FSDP training on dedicated GPUs.
+"""LearnerActor -- FSDP training on dedicated GPUs via Monarch actors.
 
-Wraps Qwen2.5-1.5B in FSDP, computes PPO-clipped loss with KL penalty,
-runs optimizer step. Each actor instance is one FSDP rank.
-Weight serialization for pushing to the Generator.
+Uses setup_torch_elastic_env() to configure NCCL process groups (RANK,
+WORLD_SIZE, MASTER_ADDR, etc.) on the proc mesh before spawning.
+Then dist.init_process_group("nccl") + composable fully_shard() in the
+initialize endpoint -- after the actor is fully constructed.
 """
 import io
+import os
 from typing import Dict, List
 
 import torch
@@ -16,8 +18,9 @@ from monarch.actor import Actor, endpoint, current_rank, current_size
 class LearnerActor(Actor):
     """FSDP-wrapped training actor for GRPO policy updates.
 
-    Each instance is one FSDP rank. Monarch's call() broadcasts the
-    train_step to all ranks so FSDP collectives work correctly.
+    Env vars (RANK, WORLD_SIZE, etc.) are set by setup_torch_elastic_env()
+    on the proc mesh before this actor spawns. The initialize() endpoint
+    then calls dist.init_process_group("nccl") and sets up FSDP.
     """
 
     def __init__(
@@ -28,80 +31,76 @@ class LearnerActor(Actor):
         clip_range: float = 0.2,
         max_grad_norm: float = 1.0,
         gradient_checkpointing: bool = True,
-        mixed_precision: str = "bf16",
     ):
-        from transformers import AutoModelForCausalLM, AutoTokenizer
-        from torch.distributed.fsdp import (
-            FullyShardedDataParallel as FSDP,
-            MixedPrecision,
-            ShardingStrategy,
-        )
-        from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
-        import functools
-
         self.model_name = model_name
+        self.learning_rate = learning_rate
         self.kl_coef = kl_coef
         self.clip_range = clip_range
         self.max_grad_norm = max_grad_norm
+        self.gradient_checkpointing = gradient_checkpointing
         self.policy_version = 0
+        self.model = None
+        self.optimizer = None
+        self.tokenizer = None
 
-        point = current_rank()
-        rank = point.rank  # flat rank index across the mesh
-        world_size = current_size()
-        device = torch.device(f"cuda:{rank}")
+    @endpoint
+    async def initialize(self) -> str:
+        """Set up NCCL process group, load model with FSDP.
 
-        # Initialize process group for FSDP
+        Must be called after spawn. Env vars are already set by
+        setup_torch_elastic_env() on the proc mesh.
+        """
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+        from torch.distributed._composable.fsdp import fully_shard
+
+        # Init NCCL -- env vars (RANK, WORLD_SIZE, MASTER_ADDR, MASTER_PORT)
+        # were set by setup_torch_elastic_env() before spawn
+        # Reduce CUDA memory fragmentation
+        os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+
         if not dist.is_initialized():
-            dist.init_process_group(backend="nccl")
+            dist.init_process_group("nccl")
 
-        # Load model
+        local_rank = int(os.environ.get("LOCAL_RANK", 0))
+        torch.cuda.set_device(local_rank)
+
+        # Load model on CPU -- fully_shard() handles CPU→CUDA movement
         model = AutoModelForCausalLM.from_pretrained(
-            model_name,
+            self.model_name,
             torch_dtype=torch.bfloat16,
+            attn_implementation="sdpa",
         )
 
-        if gradient_checkpointing:
-            model.gradient_checkpointing_enable()
+        # Composable FSDP -- shards weights across all ranks
+        for layer in model.model.layers:
+            fully_shard(layer, reshard_after_forward=True)
+        fully_shard(model, reshard_after_forward=False)
 
-        # Auto-wrap policy for Qwen decoder layers
-        try:
+        # PyTorch activation checkpointing (HF's gradient_checkpointing_enable
+        # does NOT compose with FSDP2 -- has zero effect on memory)
+        if self.gradient_checkpointing:
+            from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import apply_activation_checkpointing
             from transformers.models.qwen2.modeling_qwen2 import Qwen2DecoderLayer
-            wrap_cls = Qwen2DecoderLayer
-        except ImportError:
-            wrap_cls = nn.Module  # fallback
+            apply_activation_checkpointing(
+                model, check_fn=lambda m: isinstance(m, Qwen2DecoderLayer)
+            )
 
-        auto_wrap_policy = functools.partial(
-            transformer_auto_wrap_policy,
-            transformer_layer_cls={wrap_cls},
-        )
-
-        # Mixed precision
-        mp_policy = MixedPrecision(
-            param_dtype=torch.bfloat16,
-            reduce_dtype=torch.bfloat16,
-            buffer_dtype=torch.bfloat16,
-        )
-
-        # Wrap in FSDP
-        self.model = FSDP(
-            model,
-            sharding_strategy=ShardingStrategy.FULL_SHARD,
-            mixed_precision=mp_policy,
-            auto_wrap_policy=auto_wrap_policy,
-            device_id=device,
-        )
-
+        self.model = model
         self.optimizer = torch.optim.AdamW(
             self.model.parameters(),
-            lr=learning_rate,
+            lr=self.learning_rate,
             betas=(0.9, 0.999),
             eps=1e-8,
             weight_decay=0.01,
         )
 
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
+
+        rank = dist.get_rank()
+        world_size = dist.get_world_size()
+        return f"rank {rank}/{world_size} initialized on cuda:{local_rank}"
 
     def _compute_log_probs(
         self,
@@ -109,20 +108,11 @@ class LearnerActor(Actor):
         attention_mask: torch.Tensor,
         response_start_indices: List[int],
     ) -> List[torch.Tensor]:
-        """Compute per-token log probs for the response portion only.
-
-        Args:
-            input_ids: Full sequence (prompt + response) [batch, seq_len]
-            attention_mask: Attention mask [batch, seq_len]
-            response_start_indices: Where the response starts in each sequence
-
-        Returns:
-            List of per-token log prob tensors, one per sequence
-        """
+        """Compute per-token log probs for the response portion only."""
         with torch.amp.autocast("cuda", dtype=torch.bfloat16):
-            outputs = self.model(input_ids=input_ids, attention_mask=attention_mask)
+            outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, use_cache=False)
 
-        logits = outputs.logits  # [batch, seq_len, vocab]
+        logits = outputs.logits
         log_probs_all = torch.log_softmax(logits, dim=-1)
 
         per_sequence_logps = []
@@ -130,7 +120,7 @@ class LearnerActor(Actor):
             start = response_start_indices[i]
             # Shift: predict token t+1 from position t
             token_ids = input_ids[i, start:]
-            logps = log_probs_all[i, start - 1:-1]  # shifted
+            logps = log_probs_all[i, start - 1:-1]
             gathered = logps.gather(-1, token_ids.unsqueeze(-1)).squeeze(-1)
             per_sequence_logps.append(gathered)
 
@@ -138,84 +128,99 @@ class LearnerActor(Actor):
 
     @endpoint
     async def train_step(self, batch: dict) -> dict:
-        """Perform one GRPO training step.
+        """Perform one GRPO training step. All FSDP ranks must call this together.
 
-        Args:
-            batch: Dict with 'prompts', 'completions', 'old_log_probs', 'advantages'
-
-        Returns:
-            Dict with training metrics
+        Each rank processes its shard of the batch (data parallelism).
+        FSDP handles weight sharding and gradient all-reduce.
         """
+        rank = dist.get_rank()
+        world_size = dist.get_world_size()
+
+        # Shard data across ranks
+        all_prompts = batch["prompts"]
+        all_completions = batch["completions"]
+        all_old_log_probs = batch.get("old_log_probs", batch.get("log_probs", []))
+        all_advantages = batch["advantages"]
+
+        n = len(all_prompts)
+        per_rank = max(n // world_size, 1)
+        start = rank * per_rank
+        end = start + per_rank if rank < world_size - 1 else n
+
+        prompts = all_prompts[start:end]
+        completions = all_completions[start:end]
+        old_log_probs_list = all_old_log_probs[start:end]
+        advantages_list = all_advantages[start:end]
+
         device = next(self.model.parameters()).device
-        prompts = batch["prompts"]
-        completions = batch["completions"]
-        old_log_probs_list = batch.get("old_log_probs", batch.get("log_probs", []))
-        advantages_list = batch["advantages"]
+        micro_bs = 4  # Limit activation memory per forward pass
 
-        # Tokenize prompt + completion pairs
-        full_texts = [p + c for p, c in zip(prompts, completions)]
-        prompt_encodings = self.tokenizer(prompts, add_special_tokens=False)
-        full_encodings = self.tokenizer(
-            full_texts,
-            padding=True,
-            truncation=True,
-            return_tensors="pt",
-        ).to(device)
-
-        response_start_indices = [len(ids) for ids in prompt_encodings["input_ids"]]
-
-        # Forward pass: get new log probs
-        new_log_probs_list = self._compute_log_probs(
-            full_encodings["input_ids"],
-            full_encodings["attention_mask"],
-            response_start_indices,
-        )
-
-        # Compute PPO-clipped loss with KL penalty
-        total_loss = torch.tensor(0.0, device=device)
+        self.optimizer.zero_grad()
+        total_loss_val = 0.0
         total_clip_fraction = 0.0
         total_kl = 0.0
         n_tokens = 0
-
-        for i in range(len(prompts)):
-            new_logps = new_log_probs_list[i]
-            old_logps = torch.tensor(old_log_probs_list[i], device=device)
-            advantage = advantages_list[i]
-
-            # Truncate to same length
-            min_len = min(len(new_logps), len(old_logps))
-            if min_len == 0:
-                continue
-            new_logps = new_logps[:min_len]
-            old_logps = old_logps[:min_len]
-
-            # Per-token ratio and clipping
-            ratio = (new_logps - old_logps).exp()
-            clipped_ratio = torch.clamp(ratio, 1 - self.clip_range, 1 + self.clip_range)
-
-            # PPO objective (negative because we minimize)
-            surr1 = ratio * advantage
-            surr2 = clipped_ratio * advantage
-            ppo_loss = -torch.min(surr1, surr2).mean()
-
-            # KL penalty (approximate)
-            kl = (ratio - 1) - (new_logps - old_logps)
-            kl_loss = kl.mean()
-
-            total_loss += ppo_loss + self.kl_coef * kl_loss
-            total_clip_fraction += (
-                (ratio < 1 - self.clip_range) | (ratio > 1 + self.clip_range)
-            ).float().mean().item()
-            total_kl += kl.mean().item()
-            n_tokens += min_len
-
-        # Average over sequences
         n_sequences = max(len(prompts), 1)
-        loss = total_loss / n_sequences
 
-        # Backward + optimizer step
-        self.optimizer.zero_grad()
-        loss.backward()
+        # Micro-batch loop: forward + backward per chunk, gradients accumulate
+        for mb_start in range(0, len(prompts), micro_bs):
+            mb_end = min(mb_start + micro_bs, len(prompts))
+            mb_prompts = prompts[mb_start:mb_end]
+            mb_completions = completions[mb_start:mb_end]
+            mb_old_logps = old_log_probs_list[mb_start:mb_end]
+            mb_advantages = advantages_list[mb_start:mb_end]
+
+            full_texts = [p + c for p, c in zip(mb_prompts, mb_completions)]
+            prompt_encodings = self.tokenizer(mb_prompts, add_special_tokens=False)
+            full_encodings = self.tokenizer(
+                full_texts,
+                padding=True,
+                truncation=True,
+                return_tensors="pt",
+            ).to(device)
+
+            response_start_indices = [len(ids) for ids in prompt_encodings["input_ids"]]
+
+            new_log_probs_list = self._compute_log_probs(
+                full_encodings["input_ids"],
+                full_encodings["attention_mask"],
+                response_start_indices,
+            )
+
+            mb_loss = torch.tensor(0.0, device=device)
+            for i in range(len(mb_prompts)):
+                new_logps = new_log_probs_list[i]
+                old_logps = torch.tensor(mb_old_logps[i], device=device)
+                advantage = mb_advantages[i]
+
+                min_len = min(len(new_logps), len(old_logps))
+                if min_len == 0:
+                    continue
+                new_logps = new_logps[:min_len]
+                old_logps = old_logps[:min_len]
+
+                ratio = (new_logps - old_logps).exp()
+                clipped_ratio = torch.clamp(ratio, 1 - self.clip_range, 1 + self.clip_range)
+
+                surr1 = ratio * advantage
+                surr2 = clipped_ratio * advantage
+                ppo_loss = -torch.min(surr1, surr2).mean()
+
+                kl = (ratio - 1) - (new_logps - old_logps)
+                kl_loss = kl.mean()
+
+                mb_loss += ppo_loss + self.kl_coef * kl_loss
+                total_clip_fraction += (
+                    (ratio < 1 - self.clip_range) | (ratio > 1 + self.clip_range)
+                ).float().mean().item()
+                total_kl += kl.mean().item()
+                n_tokens += min_len
+
+            # Scale by fraction of total batch and backward (accumulates grads)
+            scaled_loss = mb_loss / n_sequences
+            scaled_loss.backward()
+            total_loss_val += scaled_loss.item()
+
         grad_norm = nn.utils.clip_grad_norm_(
             self.model.parameters(), self.max_grad_norm
         )
@@ -223,7 +228,7 @@ class LearnerActor(Actor):
         self.policy_version += 1
 
         return {
-            "loss": loss.item(),
+            "loss": total_loss_val,
             "kl_divergence": total_kl / n_sequences,
             "clip_fraction": total_clip_fraction / n_sequences,
             "grad_norm": grad_norm.item() if isinstance(grad_norm, torch.Tensor) else grad_norm,
@@ -233,51 +238,28 @@ class LearnerActor(Actor):
 
     @endpoint
     async def get_weights(self) -> bytes:
-        """Gather full state dict and serialize for weight sync.
-
-        Uses FSDP.summon_full_params to gather sharded weights on rank 0.
-
-        Returns:
-            Serialized state dict bytes (only meaningful on rank 0)
-        """
-        from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-
-        with FSDP.summon_full_params(self.model, writeback=False):
-            state_dict = {
-                k: v.cpu().clone() for k, v in self.model.state_dict().items()
-            }
-
+        """Gather full state dict and serialize for weight sync."""
+        # Composable FSDP state_dict() gathers shards automatically
+        state_dict = {
+            k: v.cpu().clone() for k, v in self.model.state_dict().items()
+        }
         buffer = io.BytesIO()
         torch.save(state_dict, buffer)
         return buffer.getvalue()
 
     @endpoint
     async def save_checkpoint(self, path: str) -> str:
-        """Save model checkpoint in HuggingFace format.
-
-        Args:
-            path: Directory to save checkpoint to
-
-        Returns:
-            Path where checkpoint was saved
-        """
-        from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-
-        point = current_rank()
-        rank = point.rank
-
-        with FSDP.summon_full_params(self.model, writeback=False):
-            if rank == 0:
-                # Save in HF format for easy loading
-                unwrapped = self.model.module
-                unwrapped.save_pretrained(path)
-                self.tokenizer.save_pretrained(path)
-
+        """Save model checkpoint in HuggingFace format."""
+        rank = dist.get_rank() if dist.is_initialized() else 0
+        if rank == 0:
+            state_dict = {k: v.cpu().clone() for k, v in self.model.state_dict().items()}
+            self.model.config.save_pretrained(path)
+            torch.save(state_dict, f"{path}/pytorch_model.bin")
+            self.tokenizer.save_pretrained(path)
         return path
 
     @endpoint
     async def get_stats(self) -> dict:
-        """Return learner statistics."""
         return {
             "model_name": self.model_name,
             "policy_version": self.policy_version,

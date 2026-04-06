@@ -17,10 +17,9 @@ RUN apt-get update && \
 # Install torchmonarch first (may upgrade PyTorch)
 RUN pip install --no-cache-dir torchmonarch==0.4.0 kubernetes>=28.0.0
 
-# Reinstall vLLM and flash-attn against the current PyTorch version
+# Reinstall vLLM against the current PyTorch version
 # (torchmonarch may have upgraded PyTorch, breaking pre-compiled extensions)
 RUN pip install --no-cache-dir vllm --force-reinstall
-RUN pip install --no-cache-dir flash-attn --force-reinstall --no-build-isolation
 
 # Remaining Python dependencies
 RUN pip install --no-cache-dir \

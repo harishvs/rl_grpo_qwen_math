@@ -16,7 +16,6 @@ import time
 
 import torch
 from monarch.actor import this_host
-from monarch._src.job.kubernetes import KubernetesJob
 from monarch.spmd import setup_torch_elastic_env
 
 from src.monarch.config import load_config
@@ -48,20 +47,30 @@ async def main(config_path: str):
     # Option 1: KubernetesJob (attach to pre-provisioned MonarchMesh pods)
     # Option 2: Local (for development with this_host())
     try:
-        job = KubernetesJob(mesh_name="grpo-monarch")
-        state = job.state()
-        hosts = state.workers
-    except Exception:
+        from monarch._src.job.kubernetes import KubernetesJob
+        job = KubernetesJob(namespace="default")
+        job.add_mesh("grpomonarch", num_replicas=2, label_selector="monarch.pytorch.org/mesh-name=grpo-monarch")
+        state = job.state(cached_path=None)
+        hosts = state.grpomonarch
+    except Exception as e:
+        print(f"KubernetesJob failed ({e}), falling back to local host", flush=True)
         # Fallback to local for development
         print("KubernetesJob not available, falling back to local host", flush=True)
         hosts = this_host()
 
+    # Split hosts: host 0 = Learner (FSDP), host 1 = Generator (vLLM)
+    learner_host = hosts.slice(hosts=slice(0, 1))
+    generator_host = hosts.slice(hosts=slice(1, 2))
+
     # Generator: single process (vLLM handles GPU parallelism internally)
-    generator_procs = hosts.spawn_procs(per_host={"gpus": 1})
+    generator_procs = generator_host.spawn_procs(per_host={"gpus": 1})
 
     # Learner: one process per GPU for FSDP (each is an FSDP rank)
-    learner_procs = hosts.spawn_procs(per_host={"gpus": config.trainer.n_gpus_per_node})
-    # Configure RANK, WORLD_SIZE, MASTER_ADDR etc for torch.distributed (needed by FSDP)
+    learner_procs = learner_host.spawn_procs(per_host={"gpus": config.trainer.n_gpus_per_node})
+
+    # Set RANK, WORLD_SIZE, MASTER_ADDR, MASTER_PORT on all learner processes
+    # so dist.init_process_group("nccl") works inside the actor
+    print("Setting up torch elastic env on learner mesh...", flush=True)
     setup_torch_elastic_env(learner_procs)
 
     # CPU mesh (on the same host as the controller)
@@ -100,10 +109,12 @@ async def main(config_path: str):
         clip_range=config.learner.clip_range,
         max_grad_norm=config.learner.max_grad_norm,
         gradient_checkpointing=config.learner.gradient_checkpointing,
-        mixed_precision=config.learner.mixed_precision,
     )
 
-    print("All actors spawned", flush=True)
+    print("All actors spawned, initializing learner FSDP...", flush=True)
+    init_results = await learner.initialize.call()
+    for r in init_results:
+        print(f"  Learner: {r}", flush=True)
 
     # --- Training loop ---
     prompts_per_step = config.data.train_batch_size // config.generator.group_size
@@ -185,7 +196,7 @@ async def main(config_path: str):
         if train_batch is not None:
             # call() broadcasts to all 8 FSDP ranks -- they must all participate
             train_results = await learner.train_step.call(train_batch)
-            train_metrics = train_results[0]  # metrics from rank 0
+            train_metrics = train_results.values()[0]  # metrics from rank 0
         else:
             train_metrics = {"loss": 0.0, "kl_divergence": 0.0, "clip_fraction": 0.0, "grad_norm": 0.0}
 
@@ -193,7 +204,7 @@ async def main(config_path: str):
         if step > 0 and step % config.trainer.weight_sync_interval == 0:
             # call() to all ranks, but only rank 0 returns meaningful weights
             weights_list = await learner.get_weights.call()
-            weights_bytes = weights_list[0]  # rank 0's gathered state dict
+            weights_bytes = weights_list.values()[0]  # rank 0's gathered state dict
             await generator.update_weights.call_one(weights_bytes, step)
 
         # 8. Checkpoint

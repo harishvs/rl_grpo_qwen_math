@@ -236,3 +236,49 @@ Node 0 (8x A100 GPUs)                    Node 1 (8x A100 GPUs)
 - Shared module imports verified (reward, grpo, dataset)
 - Re-exports verified (verl, custom paths still work)
 - Mermaid diagrams rendered to PNG successfully
+
+---
+
+## Phase 7: Deployment & Training (2026-04-05 to 2026-04-06)
+
+### Run #1 (2026-04-05 ~09:12) — Generation works, FSDP fails
+- [x] Deploy MonarchMesh, fix 16+ issues (CRD API, labels, flash-attn, numpy, etc.)
+- [x] Generation working: 256 completions at 8400 tok/s via vLLM
+- [x] FSDP fails: actors can't form NCCL process group (fundamental isolation problem)
+- Observations: `docs/run-2026-04-05-0912-monarch/observations.md`
+
+### Run #2 (2026-04-05 ~10:15) — proc_mesh.activate() attempt
+- [x] Rewrite LearnerActor with `proc_mesh.activate()` + composable `fully_shard()`
+- [x] Rebuild Docker image with all deps baked in
+- [x] Discovered `proc_mesh.activate()` is for tensor engine, not FSDP/NCCL
+- Observations: `docs/run-2026-04-05-1015-monarch/observations.md`
+
+### Run #3 (2026-04-06 ~00:30) — FSDP working, training running
+- [x] Research: `current_rank()`/`current_size()` are base actor APIs, not SPMDActor-specific
+- [x] Use `setup_torch_elastic_env(learner_procs)` to set torchrun env vars on proc mesh
+- [x] Refactor LearnerActor: lightweight `__init__`, `@endpoint initialize()` for FSDP setup
+- [x] `dist.init_process_group("nccl")` + composable `fully_shard()` in initialize endpoint
+- [x] Remove `proc_mesh.activate()` from all endpoints
+- [x] Fix host slicing: `hosts.slice(hosts=slice(0,1))` for split placement
+- [x] Fix flash-attn: uninstall broken package, vLLM falls back to non-flash rotary
+- [x] Fix Dockerfile: remove flash-attn build step
+- [x] Data sharding: each FSDP rank processes `batch_size / world_size` samples
+- [x] Fix model device: load on CPU, let `fully_shard()` handle CPU→CUDA
+- [x] Fix activation checkpointing: HF's doesn't work with FSDP2, use PyTorch's
+- [x] Add `reshard_after_forward=True` per layer, `False` on root
+- [x] Add `use_cache=False` in forward pass
+- [x] Add `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`
+- [x] Fix ValueMesh: `.call()` returns ValueMesh, use `.values()[0]`
+- [x] Micro-batching: 4 samples per forward+backward to limit activation memory
+- [x] FSDP init confirmed: all 8 ranks, 1.4 GiB/GPU (correctly sharded)
+- [x] Training confirmed: 3 steps, 26 samples/sec, reward=0.15
+- Observations: `docs/run-2026-04-05-1015-monarch/observations-run3.md`
+
+### Remaining — not started
+- [ ] Fix vLLM weight sync API (v0.19.0 changed `model_executor` path)
+- [ ] Fix KL divergence explosion (hyperparameter tuning — kl_coef, lr, clip_range)
+- [ ] Rebuild Docker image with all fixes (no more manual pod patching)
+- [ ] Run full training (233 steps, 1 epoch) end to end
+- [ ] Collect final training logs and metrics
+- [ ] Compare throughput and accuracy with veRL and custom implementations
+- [ ] File GitHub issue on pytorch/monarch for FSDP example
