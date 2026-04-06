@@ -1,0 +1,10 @@
+Monarch worker listening on tcp://grpo-monarch-0.grpo-monarch-svc.default.svc.cluster.local:26600
+Monarch internal logs are being written to /tmp/root/monarch_log.log; execution id root_Apr-06_06:48_95
+[actor=<root>.<src.monarch.actors.learner.LearnerActor learner{'hosts': 0/1, 'gpus': 3/8}>] `torch_dtype` is deprecated! Use `dtype` instead!
+[actor=<root>.<src.monarch.actors.learner.LearnerActor learner{'hosts': 0/1, 'gpus': 7/8}>] `torch_dtype` is deprecated! Use `dtype` instead!
+[actor=<root>.<src.monarch.actors.learner.LearnerActor learner{'hosts': 0/1, 'gpus': 1/8}>] `torch_dtype` is deprecated! Use `dtype` instead!
+[actor=<root>.<src.monarch.actors.learner.LearnerActor learner{'hosts': 0/1, 'gpus': 2/8}>] `torch_dtype` is deprecated! Use `dtype` instead!
+[actor=<root>.<src.monarch.actors.learner.LearnerActor learner{'hosts': 0/1, 'gpus': 4/8}>] `torch_dtype` is deprecated! Use `dtype` instead!
+[actor=<root>.<src.monarch.actors.learner.LearnerActor learner{'hosts': 0/1, 'gpus': 5/8}>] `torch_dtype` is deprecated! Use `dtype` instead!
+[actor=<root>.<src.monarch.actors.learner.LearnerActor learner{'hosts': 0/1, 'gpus': 6/8}>] `torch_dtype` is deprecated! Use `dtype` instead!
+[actor=<root>.<src.monarch.actors.learner.LearnerActor learner{'hosts': 0/1, 'gpus': 0/8}>] `torch_dtype` is deprecated! Use `dtype` instead!
