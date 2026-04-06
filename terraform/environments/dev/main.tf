@@ -637,72 +637,34 @@ resource "kubernetes_daemonset" "nvidia_device_plugin" {
   depends_on = [module.node_groups]
 }
 
-# AWS EFA Device Plugin DaemonSet
-resource "kubernetes_daemonset" "efa_device_plugin" {
+# AWS EFA Device Plugin via official Helm chart
+# Ref: https://docs.aws.amazon.com/eks/latest/userguide/device-management-efa.html
+# Handles volume mounts (/dev/infiniband), privileged security context,
+# and device registration automatically.
+resource "helm_release" "aws_efa_k8s_device_plugin" {
   count = var.efa_enabled ? 1 : 0
 
-  metadata {
-    name      = "aws-efa-k8s-device-plugin-daemonset"
-    namespace = "kube-system"
+  name       = "aws-efa-k8s-device-plugin"
+  namespace  = "kube-system"
+  repository = "https://aws.github.io/eks-charts"
+  chart      = "aws-efa-k8s-device-plugin"
+  version    = "0.5.7"
+
+  set {
+    name  = "tolerations[0].key"
+    value = "nvidia.com/gpu"
   }
-
-  spec {
-    selector {
-      match_labels = {
-        name = "aws-efa-k8s-device-plugin"
-      }
-    }
-
-    template {
-      metadata {
-        labels = {
-          name = "aws-efa-k8s-device-plugin"
-        }
-      }
-
-      spec {
-        priority_class_name = "system-node-critical"
-        host_network        = true
-
-        toleration {
-          key      = "nvidia.com/gpu"
-          operator = "Exists"
-          effect   = "NoSchedule"
-        }
-
-        node_selector = {
-          "node-type" = "gpu"
-        }
-
-        container {
-          name  = "aws-efa-k8s-device-plugin"
-          image = "602401143452.dkr.ecr.us-east-1.amazonaws.com/eks/aws-efa-k8s-device-plugin:v0.5.7"
-
-          security_context {
-            allow_privilege_escalation = false
-            capabilities {
-              drop = ["ALL"]
-            }
-          }
-
-          volume_mount {
-            name       = "device-plugin"
-            mount_path = "/var/lib/kubelet/device-plugins"
-          }
-        }
-
-        volume {
-          name = "device-plugin"
-          host_path {
-            path = "/var/lib/kubelet/device-plugins"
-          }
-        }
-      }
-    }
-
-    strategy {
-      type = "RollingUpdate"
-    }
+  set {
+    name  = "tolerations[0].operator"
+    value = "Exists"
+  }
+  set {
+    name  = "tolerations[0].effect"
+    value = "NoSchedule"
+  }
+  set {
+    name  = "nodeSelector.node-type"
+    value = "gpu"
   }
 
   depends_on = [module.node_groups]

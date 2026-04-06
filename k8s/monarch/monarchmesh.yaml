@@ -16,10 +16,12 @@ spec:
       resources:
         limits:
           nvidia.com/gpu: "8"
+          vpc.amazonaws.com/efa: "4"
           memory: 800Gi
           cpu: "90"
         requests:
           nvidia.com/gpu: "8"
+          vpc.amazonaws.com/efa: "4"
           memory: 600Gi
           cpu: "48"
       command: ["python", "-u", "-c"]
