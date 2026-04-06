@@ -116,6 +116,12 @@ async def main(config_path: str):
     for r in init_results:
         print(f"  Learner: {r}", flush=True)
 
+    # Expose learner weights as RDMA buffers for zero-copy sync to generator
+    print("Setting up RDMA weight sync...", flush=True)
+    weight_handles = await learner.expose_weights.call_one()
+    await generator.set_weight_handles.call_one(weight_handles)
+    print("RDMA weight handles configured", flush=True)
+
     # --- Training loop ---
     prompts_per_step = config.data.train_batch_size // config.generator.group_size
     dataset_stats = await dataset.get_stats.call_one()
@@ -200,12 +206,10 @@ async def main(config_path: str):
         else:
             train_metrics = {"loss": 0.0, "kl_divergence": 0.0, "clip_fraction": 0.0, "grad_norm": 0.0}
 
-        # 7. Sync weights to generator (every N steps)
+        # 7. Sync weights to generator via RDMA (every N steps)
         if step > 0 and step % config.trainer.weight_sync_interval == 0:
-            # call() to all ranks, but only rank 0 returns meaningful weights
-            weights_list = await learner.get_weights.call()
-            weights_bytes = weights_list.values()[0]  # rank 0's gathered state dict
-            await generator.update_weights.call_one(weights_bytes, step)
+            # Generator reads directly from learner's RDMA buffers — no serialization
+            await generator.sync_weights_rdma.call_one(step)
 
         # 8. Checkpoint
         if step > 0 and step % config.trainer.save_freq == 0:

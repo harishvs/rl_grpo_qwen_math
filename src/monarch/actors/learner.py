@@ -279,10 +279,29 @@ class LearnerActor(Actor):
         }
 
     @endpoint
+    async def expose_weights(self) -> dict:
+        """Gather FSDP shards and expose as RDMA buffers for zero-copy weight sync.
+
+        Returns dict of {param_name: (tensor, RDMABuffer)} that the generator
+        can read_into directly. Call once after init — buffers stay valid as
+        the optimizer updates tensors in-place.
+        """
+        from monarch.rdma import RDMABuffer
+
+        self._weight_buffers = {}
+        for k, v in self.model.state_dict().items():
+            if hasattr(v, 'full_tensor'):
+                t = v.full_tensor().contiguous()
+            else:
+                t = v.detach().contiguous()
+            buf = RDMABuffer(t.view(torch.uint8).flatten())
+            self._weight_buffers[k] = (t, buf)
+
+        return self._weight_buffers
+
+    @endpoint
     async def get_weights(self) -> bytes:
-        """Gather full state dict and serialize for weight sync."""
-        # Composable FSDP state_dict() gathers shards automatically.
-        # Convert DTensors to plain tensors so vLLM can load them.
+        """Gather full state dict and serialize (fallback for non-RDMA sync)."""
         state_dict = {}
         for k, v in self.model.state_dict().items():
             if hasattr(v, 'full_tensor'):

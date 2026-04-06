@@ -105,7 +105,7 @@ FSDP shards model parameters, gradients, and optimizer states across GPUs. Each 
 
 ## Approach 1: Custom GRPO Trainer (from scratch)
 
-A hand-rolled implementation to understand every piece of the GRPO pipeline. This was the first approach attempted and went through 5 iterations of debugging and optimization.
+A hand-rolled implementation to understand the complexities of deploying an RL training loop on EKS and getting it running end-to-end. This was the first approach attempted and went through 5 iterations of debugging and optimization. Note: reward trajectory was not plotted for this approach — the focus was on infrastructure, not training quality.
 
 ### Architecture
 

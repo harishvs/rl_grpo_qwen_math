@@ -102,3 +102,18 @@ Time impact: One extra forward pass per step (~3-5s for 1.5B with CPU offload).
 | 16 | FSDP DTensor in state_dict | full_tensor().cpu() conversion |
 | 17 | FSDP gradient sync during accumulation | model.set_requires_gradient_sync(False) |
 | 18 | set_requires_gradient_sync import error | It's a method on the model, not a function |
+
+## Run #4a: Reference Model Results (30 steps captured)
+
+KL completely stabilized with frozen reference model:
+- KL range: 0.0000 - 0.0090 (vs 0.0005 - 1400 without ref model)
+- Reward trending up slightly: 0.14 → 0.20-0.25
+- Step time unchanged (~10s normal, ~65s weight sync)
+
+## Run #4b: RDMA Weight Sync
+
+Replacing serialized state_dict weight sync (~65s per sync) with RDMA:
+- Learner exposes RDMA buffers via `expose_weights()` endpoint
+- Generator pulls weights via `read_into()` — direct memory read, no serialization
+- Expected sync time: sub-second with EFA (400 Gbps RDMA on p4d)
+- Weight sync steps should drop from ~65s to ~10s (matching normal steps)

@@ -104,20 +104,40 @@ class GeneratorActor(Actor):
         }
 
     @endpoint
-    async def update_weights(self, state_dict_bytes: bytes, version: int) -> None:
-        """Update model weights from serialized state dict.
-
-        Called by the Learner after training steps to sync the generation
-        model with the latest policy.
+    async def set_weight_handles(self, weight_buffers: dict) -> None:
+        """Store RDMA buffer handles from the learner for zero-copy weight sync.
 
         Args:
-            state_dict_bytes: Serialized state dict (torch.save format)
-            version: New policy version number
+            weight_buffers: Dict of {param_name: (tensor, RDMABuffer)} from learner
         """
+        self._weight_buffers = weight_buffers
+
+    @endpoint
+    async def sync_weights_rdma(self, version: int) -> None:
+        """Pull latest weights from learner via RDMA read_into.
+
+        Each param is read directly from the learner's GPU memory into
+        a local buffer, then loaded into the vLLM model. No serialization.
+        """
+        # Read each param from learner's RDMA buffer into local tensor
+        local_state_dict = {}
+        for name, (remote_tensor, rdma_buf) in self._weight_buffers.items():
+            local_tensor = torch.empty_like(remote_tensor)
+            await rdma_buf.read_into(local_tensor.view(torch.uint8).flatten())
+            local_state_dict[name] = local_tensor
+
+        def _load(model):
+            model.load_state_dict(local_state_dict, strict=False)
+
+        self.engine.apply_model(_load)
+        self.policy_version = version
+
+    @endpoint
+    async def update_weights(self, state_dict_bytes: bytes, version: int) -> None:
+        """Update model weights from serialized state dict (fallback, non-RDMA)."""
         buffer = io.BytesIO(state_dict_bytes)
         state_dict = torch.load(buffer, map_location="cpu", weights_only=True)
 
-        # Convert any DTensors (from FSDP) to regular tensors for vLLM
         clean_state_dict = {}
         for k, v in state_dict.items():
             if hasattr(v, 'full_tensor'):
