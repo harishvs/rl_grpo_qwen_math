@@ -115,10 +115,11 @@ class GeneratorActor(Actor):
         buffer = io.BytesIO(state_dict_bytes)
         state_dict = torch.load(buffer, map_location="cpu", weights_only=True)
 
-        # Use vLLM's weight loading API
-        model = self.engine.llm_engine.model_executor.driver_worker.model_runner.model
-        model.load_weights(state_dict.items())
+        # vLLM 0.19+ apply_model: run a function directly on the model inside the worker
+        def _load_weights(model):
+            model.load_state_dict(state_dict, strict=False)
 
+        self.engine.apply_model(_load_weights)
         self.policy_version = version
 
     @endpoint

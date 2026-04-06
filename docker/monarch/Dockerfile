@@ -21,6 +21,11 @@ RUN pip install --no-cache-dir torchmonarch==0.4.0 kubernetes>=28.0.0
 # (torchmonarch may have upgraded PyTorch, breaking pre-compiled extensions)
 RUN pip install --no-cache-dir vllm --force-reinstall
 
+# Remove flash-attn -- the NGC base image has a version compiled against PyTorch 2.6
+# which crashes with PyTorch 2.10 (undefined symbol). vLLM imports it for rotary
+# embeddings and falls back gracefully when it's absent.
+RUN pip uninstall flash-attn -y 2>/dev/null || true
+
 # Remaining Python dependencies
 RUN pip install --no-cache-dir \
     datasets>=2.14.0 \
