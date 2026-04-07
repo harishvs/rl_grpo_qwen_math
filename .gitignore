@@ -27,3 +27,5 @@ src/__pycache__/__init__.cpython-312.pyc
 logs/
 *.tfvars
 *.tfstate.*.backup
+terraform/environments/dev/tfplan
+terraform/environments/dev/tfplan
