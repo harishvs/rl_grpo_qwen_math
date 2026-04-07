@@ -171,6 +171,25 @@ NCCL INFO NET/Plugin: Loaded net plugin AWS Libfabric (v8)
 NCCL INFO Successfully loaded external plugin aws-ofi
 ```
 
+## Root cause: EFA does not support ibverbs RC/UD queue pairs
+
+```
+$ ibv_rc_pingpong -d rdmap16s27
+Couldn't create QP
+
+$ ibv_ud_pingpong -d rdmap16s27 localhost
+Failed to create AH
+GID ::   ← empty, matching zero node_guid
+```
+
+**EFA is not traditional InfiniBand.** It exposes `/dev/infiniband/uverbs*` devices for compatibility, but does not support RC (Reliable Connection) or standard UD (Unreliable Datagram) queue pairs. EFA only works through **libfabric** (`FI_PROTO_EFA` / `FI_EP_RDM`).
+
+Monarch's `RDMABuffer` uses ibverbs directly (RC queue pairs based on the `IbvManagerActor` name). Since EFA doesn't support RC QPs, the RDMA negotiation hangs and times out.
+
+**NCCL works on EFA** because it uses the AWS OFI plugin which wraps libfabric, not raw ibverbs.
+
+**Suggestion**: Monarch could add a libfabric-based RDMA backend (or an OFI backend) to support AWS EFA, similar to how NCCL uses `aws-ofi-nccl`. Alternatively, document that `RDMABuffer` requires true InfiniBand (Mellanox/NVIDIA ConnectX), not AWS EFA.
+
 ## Questions
 
 1. Is there any additional configuration required for `RDMABuffer.read_into()` to work on EKS with EFA and the ibverbs backend?
