@@ -16,21 +16,19 @@ TAG="${1:-latest}"
 aws ecr get-login-password --region "${AWS_REGION}" | \
     docker login --username AWS --password-stdin "${ECR_REGISTRY}"
 
-# Setup buildx
-docker buildx create --name monarch-builder --use 2>/dev/null || docker buildx use monarch-builder
-
 # --- 1. GPU image (training + generation) ---
 GPU_IMAGE="rl-code-llm-training-dev/monarch-grpo"
 echo "=== Building GPU image: ${GPU_IMAGE}:${TAG} ==="
 aws ecr describe-repositories --repository-names "${GPU_IMAGE}" --region "${AWS_REGION}" 2>/dev/null || \
     aws ecr create-repository --repository-name "${GPU_IMAGE}" --region "${AWS_REGION}"
 
-docker buildx build \
-    --platform linux/amd64 \
-    --push \
+# --network=host: required on EC2 with systemd-resolved, otherwise DNS fails inside build containers
+docker build \
+    --network=host \
     -t "${ECR_REGISTRY}/${GPU_IMAGE}:${TAG}" \
     -f "${PROJECT_ROOT}/docker/monarch/Dockerfile" \
     "${PROJECT_ROOT}"
+docker push "${ECR_REGISTRY}/${GPU_IMAGE}:${TAG}"
 
 echo "GPU image pushed: ${ECR_REGISTRY}/${GPU_IMAGE}:${TAG}"
 
@@ -40,12 +38,12 @@ echo "=== Building reward image: ${REWARD_IMAGE}:${TAG} ==="
 aws ecr describe-repositories --repository-names "${REWARD_IMAGE}" --region "${AWS_REGION}" 2>/dev/null || \
     aws ecr create-repository --repository-name "${REWARD_IMAGE}" --region "${AWS_REGION}"
 
-docker buildx build \
-    --platform linux/amd64 \
-    --push \
+docker build \
+    --network=host \
     -t "${ECR_REGISTRY}/${REWARD_IMAGE}:${TAG}" \
     -f "${PROJECT_ROOT}/docker/monarch/Dockerfile.reward" \
     "${PROJECT_ROOT}"
+docker push "${ECR_REGISTRY}/${REWARD_IMAGE}:${TAG}"
 
 echo "Reward image pushed: ${ECR_REGISTRY}/${REWARD_IMAGE}:${TAG}"
 
