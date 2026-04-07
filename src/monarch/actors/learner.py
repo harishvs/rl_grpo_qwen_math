@@ -378,6 +378,78 @@ class LearnerActor(Actor):
             offset += flat_shard.numel()
 
     @endpoint
+    async def init_weight_sync_pg(self, store_host: str, store_port: int) -> str:
+        """Join a gloo process group for direct tensor send to generator.
+
+        Only rank 0 participates. Other ranks return immediately.
+        """
+        rank = dist.get_rank()
+        if rank != 0:
+            return "skipped"
+
+        from torch.distributed import TCPStore
+        # Create a separate PG for weight sync between learner rank 0 and generator.
+        # Use gloo (CPU tensors) since ProcessGroupNCCL needs registration with global map.
+        store = TCPStore(store_host, store_port, 2, True, timeout=dist.default_pg_timeout)
+        from torch.distributed import ProcessGroupGloo
+        self._sync_pg = ProcessGroupGloo(store, 0, 2)
+        return f"rank 0 joined weight_sync gloo pg on {store_host}:{store_port}"
+
+    @endpoint
+    async def send_weights_direct(self) -> float:
+        """Gather FSDP shards via NCCL, then send full tensor to generator via gloo.
+
+        1. All ranks: flatten local shards → one NCCL all_gather (~1-2s)
+        2. Rank 0: send gathered tensor to generator via gloo pg (~3-5s)
+        No serialization. Returns time taken.
+        """
+        import time
+        t0 = time.time()
+
+        rank = dist.get_rank()
+        world_size = dist.get_world_size()
+        params = sorted(self.model.named_parameters(), key=lambda x: x[0])
+
+        # Each rank: flatten local shards
+        local_parts = []
+        for name, param in params:
+            lt = param.data._local_tensor if hasattr(param.data, '_local_tensor') else param.data
+            local_parts.append(lt.detach().contiguous().view(-1))
+        local_flat = torch.cat(local_parts)
+
+        # NCCL all_gather
+        if world_size > 1:
+            gathered = torch.empty(local_flat.numel() * world_size, dtype=local_flat.dtype, device=local_flat.device)
+            dist.all_gather_into_tensor(gathered, local_flat)
+        else:
+            gathered = local_flat
+
+        # Rank 0: send to generator via gloo
+        if rank == 0 and hasattr(self, '_sync_pg'):
+            # Use PG's own send method — bypasses global group registration
+            cpu_tensor = gathered.cpu().contiguous()
+            self._sync_pg.send([cpu_tensor], 1, 0).wait()
+
+        return time.time() - t0
+
+    @endpoint
+    async def get_weight_meta(self) -> list:
+        """Return param metadata for the generator to reconstruct state_dict."""
+        rank = dist.get_rank()
+        world_size = dist.get_world_size()
+        params = sorted(self.model.named_parameters(), key=lambda x: x[0])
+
+        meta = []
+        shard_offset = 0
+        for name, param in params:
+            lt = param.data._local_tensor if hasattr(param.data, '_local_tensor') else param.data
+            meta.append((name, list(param.data.shape), lt.numel(), shard_offset))
+            shard_offset += lt.numel()
+
+        return {"meta": meta, "shard_size": shard_offset, "world_size": world_size,
+                "dtype": str(params[0][1].data.dtype)}
+
+    @endpoint
     async def gather_weights_nccl(self) -> bytes:
         """Gather FSDP shards via one NCCL all_gather, then serialize.
 

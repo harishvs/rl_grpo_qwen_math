@@ -104,6 +104,54 @@ class GeneratorActor(Actor):
         }
 
     @endpoint
+    async def init_weight_sync_pg(self, store_host: str, store_port: int) -> str:
+        """Join a gloo process group for direct tensor recv from learner."""
+        import torch.distributed as dist
+        from torch.distributed import TCPStore, ProcessGroupGloo
+        store = TCPStore(store_host, store_port, 2, False, timeout=dist.default_pg_timeout)
+        self._sync_pg = ProcessGroupGloo(store, 1, 2)
+        return f"generator joined weight_sync gloo pg on {store_host}:{store_port}"
+
+    @endpoint
+    async def recv_weights_direct(self, meta: dict, version: int) -> float:
+        """Receive gathered weight tensor from learner via gloo, load into vLLM.
+
+        No serialization — raw tensor recv + reshape into state_dict.
+        """
+        import torch.distributed as dist
+        import time
+        t0 = time.time()
+
+        shard_size = meta["shard_size"]
+        world_size = meta["world_size"]
+        dtype = getattr(torch, meta["dtype"].replace("torch.", ""))
+        total_numel = shard_size * world_size
+
+        # Receive CPU tensor from learner rank 0 — use PG's own recv method
+        recv_buf = torch.empty(total_numel, dtype=dtype)
+        self._sync_pg.recv([recv_buf], 0, 0).wait()
+
+        # Reconstruct state_dict
+        state_dict = {}
+        for name, full_shape, shard_numel, shard_offset in meta["meta"]:
+            param_shards = []
+            for r in range(world_size):
+                start = r * shard_size + shard_offset
+                param_shards.append(recv_buf[start:start + shard_numel])
+            full_param = torch.cat(param_shards)
+            full_numel = 1
+            for s in full_shape:
+                full_numel *= s
+            state_dict[name] = full_param[:full_numel].reshape(full_shape)
+
+        def _load(model):
+            model.load_state_dict(state_dict, strict=False)
+
+        self.engine.apply_model(_load)
+        self.policy_version = version
+        return time.time() - t0
+
+    @endpoint
     async def set_ps_handle(self, rdma_info: dict) -> None:
         """Store param server RDMA handle and layout.
 
