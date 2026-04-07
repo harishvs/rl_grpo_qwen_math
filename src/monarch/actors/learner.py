@@ -148,45 +148,17 @@ class LearnerActor(Actor):
         with torch.no_grad():
             return self._forward_log_probs(self.ref_model, input_ids, attention_mask, response_start_indices)
 
-    @endpoint
-    async def train_step(self, batch: dict) -> dict:
-        """Perform one GRPO training step. All FSDP ranks must call this together.
-
-        Each rank processes its shard of the batch (data parallelism).
-        FSDP handles weight sharding and gradient all-reduce.
-        """
-        rank = dist.get_rank()
-        world_size = dist.get_world_size()
-
-        # Shard data across ranks
-        all_prompts = batch["prompts"]
-        all_completions = batch["completions"]
-        all_old_log_probs = batch.get("old_log_probs", batch.get("log_probs", []))
-        all_advantages = batch["advantages"]
-
-        n = len(all_prompts)
-        per_rank = max(n // world_size, 1)
-        start = rank * per_rank
-        end = start + per_rank if rank < world_size - 1 else n
-
-        prompts = all_prompts[start:end]
-        completions = all_completions[start:end]
-        old_log_probs_list = all_old_log_probs[start:end]
-        advantages_list = all_advantages[start:end]
-
-        device = next(self.model.parameters()).device
-        micro_bs = 4  # Limit activation memory per forward pass
+    def _ppo_update(self, prompts, completions, old_log_probs_list, advantages_list, device):
+        """One PPO optimizer step over a mini-batch with micro-batching."""
+        micro_bs = 4
+        n_sequences = max(len(prompts), 1)
 
         self.optimizer.zero_grad()
         total_loss_val = 0.0
         total_clip_fraction = 0.0
         total_kl = 0.0
         n_tokens = 0
-        n_sequences = max(len(prompts), 1)
 
-        # Micro-batch loop: forward + backward per chunk, gradients accumulate.
-        # Disable FSDP gradient sync for all but the last micro-batch —
-        # otherwise FSDP all-reduces at each .backward(), averaging prematurely.
         n_micro_batches = (len(prompts) + micro_bs - 1) // micro_bs
 
         for mb_idx, mb_start in enumerate(range(0, len(prompts), micro_bs)):
@@ -216,7 +188,6 @@ class LearnerActor(Actor):
                 response_start_indices,
             )
 
-            # Reference model log probs for KL (CPU offloaded, no grad)
             ref_log_probs_list = self._compute_ref_log_probs(
                 full_encodings["input_ids"],
                 full_encodings["attention_mask"],
@@ -237,7 +208,6 @@ class LearnerActor(Actor):
                 old_logps = old_logps[:min_len]
                 ref_logps = ref_logps[:min_len]
 
-                # PPO ratio and clipping (against generation-time log probs)
                 ratio = (new_logps - old_logps).exp()
                 clipped_ratio = torch.clamp(ratio, 1 - self.clip_range, 1 + self.clip_range)
 
@@ -245,8 +215,6 @@ class LearnerActor(Actor):
                 surr2 = clipped_ratio * advantage
                 ppo_loss = -torch.min(surr1, surr2).mean()
 
-                # KL against frozen reference — real gradient signal
-                # Keeps policy close to base model (like veRL)
                 ref_ratio = (new_logps - ref_logps).exp()
                 kl = (ref_ratio - 1) - torch.log(ref_ratio)
                 kl_loss = kl.mean()
@@ -258,7 +226,6 @@ class LearnerActor(Actor):
                 total_kl += kl_loss.item()
                 n_tokens += min_len
 
-            # Scale by fraction of total batch and backward (accumulates grads)
             scaled_loss = mb_loss / n_sequences
             scaled_loss.backward()
             total_loss_val += scaled_loss.item()
@@ -267,13 +234,73 @@ class LearnerActor(Actor):
             self.model.parameters(), self.max_grad_norm
         )
         self.optimizer.step()
+
+        return total_loss_val, total_kl / n_sequences, total_clip_fraction / n_sequences, \
+            grad_norm.item() if isinstance(grad_norm, torch.Tensor) else grad_norm, n_tokens
+
+    @endpoint
+    async def train_step(self, batch: dict) -> dict:
+        """Perform GRPO training with mini-batch splitting (like veRL).
+
+        Splits the rollout batch into mini-batches, does a separate PPO
+        optimizer step for each. 2x more weight updates from the same data.
+        """
+        rank = dist.get_rank()
+        world_size = dist.get_world_size()
+
+        # Shard data across ranks
+        all_prompts = batch["prompts"]
+        all_completions = batch["completions"]
+        all_old_log_probs = batch.get("old_log_probs", batch.get("log_probs", []))
+        all_advantages = batch["advantages"]
+
+        n = len(all_prompts)
+        per_rank = max(n // world_size, 1)
+        start = rank * per_rank
+        end = start + per_rank if rank < world_size - 1 else n
+
+        prompts = all_prompts[start:end]
+        completions = all_completions[start:end]
+        old_log_probs_list = all_old_log_probs[start:end]
+        advantages_list = all_advantages[start:end]
+
+        device = next(self.model.parameters()).device
+
+        # Split into mini-batches — each gets its own optimizer step
+        # 128 global mini-batch / 8 ranks = 16 per rank
+        mini_batch_size = max(len(prompts) // 2, 1)  # 2 mini-batches
+
+        total_loss = 0.0
+        total_kl = 0.0
+        total_clip = 0.0
+        total_grad_norm = 0.0
+        total_tokens = 0
+        n_mini_batches = 0
+
+        for mini_start in range(0, len(prompts), mini_batch_size):
+            mini_end = min(mini_start + mini_batch_size, len(prompts))
+
+            loss, kl, clip, grad_norm, tokens = self._ppo_update(
+                prompts[mini_start:mini_end],
+                completions[mini_start:mini_end],
+                old_log_probs_list[mini_start:mini_end],
+                advantages_list[mini_start:mini_end],
+                device,
+            )
+            total_loss += loss
+            total_kl += kl
+            total_clip += clip
+            total_grad_norm += grad_norm
+            total_tokens += tokens
+            n_mini_batches += 1
+
         self.policy_version += 1
 
         return {
-            "loss": total_loss_val,
-            "kl_divergence": total_kl / n_sequences,
-            "clip_fraction": total_clip_fraction / n_sequences,
-            "grad_norm": grad_norm.item() if isinstance(grad_norm, torch.Tensor) else grad_norm,
+            "loss": total_loss / n_mini_batches,
+            "kl_divergence": total_kl / n_mini_batches,
+            "clip_fraction": total_clip / n_mini_batches,
+            "grad_norm": total_grad_norm / n_mini_batches,
             "policy_version": self.policy_version,
             "n_tokens": n_tokens,
         }
