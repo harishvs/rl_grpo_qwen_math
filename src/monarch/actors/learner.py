@@ -245,13 +245,13 @@ class LearnerActor(Actor):
                 surr2 = clipped_ratio * advantage
                 ppo_loss = -torch.min(surr1, surr2).mean()
 
-                # KL against frozen reference (detached — monitoring only)
-                ref_ratio = (new_logps.detach() - ref_logps).exp()
+                # KL against frozen reference — real gradient signal
+                # Keeps policy close to base model (like veRL)
+                ref_ratio = (new_logps - ref_logps).exp()
                 kl = (ref_ratio - 1) - torch.log(ref_ratio)
                 kl_loss = kl.mean()
 
-                # Loss = PPO clipped objective only. KL is for monitoring.
-                mb_loss += ppo_loss
+                mb_loss += ppo_loss + self.kl_coef * kl_loss
                 total_clip_fraction += (
                     (ratio < 1 - self.clip_range) | (ratio > 1 + self.clip_range)
                 ).float().mean().item()
