@@ -72,6 +72,29 @@ An official example showing:
 4. Data sharding pattern (each FSDP rank processes batch_size/world_size)
 5. Weight sync from FSDP actor to a single-GPU generator actor (ideally via RDMA)
 
+## Weight sync challenge: FSDP + RDMA
+
+The official GRPO example uses RDMA for weight sync (single-GPU learner → generator). With FSDP, this is much harder:
+
+- Each `DTensor.full_tensor()` is a separate all-gather collective
+- A 1.5B model has 339 parameters → 339 sequential collectives → exceeds Monarch's 120s supervision timeout
+- No PyTorch API exists to gather an entire FSDP2 state_dict in one collective
+- We fell back to serialized `torch.save/load` (~65s per sync)
+
+**Suggestion**: TorchStore support on K8s would solve this — learner publishes DTensor state to the store, generator subscribes and refreshes. The FSDP shard management stays internal to Monarch/PyTorch instead of requiring manual all-gathers.
+
+**Alternative**: An `all_gather_flat()` API that concatenates all local FSDP shards and gathers in one NCCL call would enable efficient RDMA weight sync with FSDP.
+
+## Reference implementation
+
+https://github.com/harishrao1/rl_grpo_qwen_math (feat/monarch-grpo branch)
+
+Working FSDP + Monarch actor implementation with:
+- `setup_torch_elastic_env` + `dist.init_process_group` for NCCL setup
+- Composable `fully_shard()` with CPU-offloaded frozen reference model
+- Micro-batching with `set_requires_gradient_sync` for gradient accumulation
+- 18 issues documented across 4 training runs
+
 ## Environment
 
 - torchmonarch 0.4.0

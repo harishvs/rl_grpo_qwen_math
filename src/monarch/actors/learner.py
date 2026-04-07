@@ -283,21 +283,50 @@ class LearnerActor(Actor):
         """Gather FSDP shards and expose as RDMA buffers for zero-copy weight sync.
 
         Returns dict of {param_name: (tensor, RDMABuffer)} that the generator
-        can read_into directly. Call once after init — buffers stay valid as
-        the optimizer updates tensors in-place.
+        can read_into directly. Only rank 0 creates buffers — other ranks
+        participate in the FSDP collective but return empty dict.
         """
         from monarch.rdma import RDMABuffer
 
-        self._weight_buffers = {}
-        for k, v in self.model.state_dict().items():
-            if hasattr(v, 'full_tensor'):
-                t = v.full_tensor().contiguous()
-            else:
-                t = v.detach().contiguous()
-            buf = RDMABuffer(t.view(torch.uint8).flatten())
-            self._weight_buffers[k] = (t, buf)
+        rank = dist.get_rank() if dist.is_initialized() else 0
 
-        return self._weight_buffers
+        # All ranks participate in state_dict/full_tensor (FSDP collectives).
+        sd = self.model.state_dict()
+        param_names = sorted(sd.keys())
+        full_tensors = []
+        for k in param_names:
+            v = sd[k]
+            t = v.full_tensor().cpu().contiguous() if hasattr(v, 'full_tensor') else v.detach().cpu().contiguous()
+            full_tensors.append(t)
+
+        if rank == 0:
+            # One flat buffer + one RDMA handle (avoids 339 ibverbs registrations)
+            flat = torch.cat([t.view(-1).to(torch.bfloat16) for t in full_tensors])
+            self._rdma_flat = flat
+            self._rdma_buf = RDMABuffer(flat.view(torch.uint8).flatten())
+            meta = [(k, list(t.shape), str(t.dtype)) for k, t in zip(param_names, full_tensors)]
+            return {"buffer": (self._rdma_flat, self._rdma_buf), "meta": meta}
+        return {}
+
+    @endpoint
+    async def refresh_weights(self) -> None:
+        """Re-gather FSDP shards into the RDMA flat buffer after training.
+
+        All ranks participate in full_tensor() collectives. Rank 0 updates
+        the flat buffer in-place so the existing RDMA handle stays valid.
+        """
+        rank = dist.get_rank() if dist.is_initialized() else 0
+        sd = self.model.state_dict()
+
+        flat_parts = []
+        for k in sorted(sd.keys()):
+            v = sd[k]
+            t = v.full_tensor().cpu().contiguous() if hasattr(v, 'full_tensor') else v.detach().cpu().contiguous()
+            flat_parts.append(t.view(-1).to(torch.bfloat16))
+
+        if rank == 0 and hasattr(self, '_rdma_flat'):
+            new_flat = torch.cat(flat_parts)
+            self._rdma_flat.copy_(new_flat)
 
     @endpoint
     async def get_weights(self) -> bytes:

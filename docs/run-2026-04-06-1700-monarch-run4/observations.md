@@ -112,8 +112,36 @@ KL completely stabilized with frozen reference model:
 
 ## Run #4b: RDMA Weight Sync
 
-Replacing serialized state_dict weight sync (~65s per sync) with RDMA:
-- Learner exposes RDMA buffers via `expose_weights()` endpoint
-- Generator pulls weights via `read_into()` — direct memory read, no serialization
-- Expected sync time: sub-second with EFA (400 Gbps RDMA on p4d)
-- Weight sync steps should drop from ~65s to ~10s (matching normal steps)
+### EFA Fix
+- EFA device plugin was CrashLoopBackOff — missing /dev/infiniband volume mount
+- Replaced manual DaemonSet with official Helm chart (`aws-efa-k8s-device-plugin`)
+- Ref: https://docs.aws.amazon.com/eks/latest/userguide/device-management-efa.html
+- MonarchMesh pods now request `vpc.amazonaws.com/efa: 4`
+- RDMABuffer reports `ibverbs` backend (real RDMA, not TCP fallback)
+
+### RDMA Attempts
+1. **339 individual RDMA buffers**: Crashed — supervision timeout (120s) exceeded. Too many ibverbs memory registrations + full_tensor collectives.
+2. **Only rank 0 creates buffers, others exit early**: Deadlocked — full_tensor() is a collective, all ranks must call it.
+3. **All ranks call full_tensor, only rank 0 creates buffers**: Still timed out — 339 separate registrations too slow.
+4. **Single flat buffer**: Concatenate all params into one 3GB tensor, one RDMA buffer, one read_into call. Plus `refresh_weights` endpoint to update the flat buffer in-place after training steps.
+
+### Architecture (attempt 4)
+- `expose_weights()`: All ranks gather shards → rank 0 concatenates into flat tensor → one RDMABuffer. Called once at init.
+- `refresh_weights()`: All ranks re-gather shards → rank 0 overwrites flat tensor in-place. Called before each sync.
+- `sync_weights_rdma()`: Generator does one `read_into` for 3GB → slices back into params → `load_state_dict`.
+- RDMA buffer handle stays valid across refreshes (same memory address).
+
+### Root cause of RDMA crashes
+- Monarch supervision watchdog timeout (120s) — `full_tensor()` calls 339 FSDP all-gather collectives sequentially, exceeding timeout
+- Not OOM, not stale buffers — purely a time limit issue
+
+### Research findings
+- **No PyTorch API** exists to gather an entire FSDP2 state_dict in one collective. Each DTensor's `full_tensor()` is a separate all-gather.
+- **veRL** doesn't use RDMA either — it uses in-process weight passing or serialized transfers.
+- **Expert recommendation**: Use Monarch TorchStore to publish FSDP DTensor state between meshes. However, TorchStore is not available in torchmonarch 0.4.0 — it requires TorchForge (Slurm/MAST only).
+- **Potential optimization**: Access local shards via `dtensor._local_tensor`, concatenate, then one `all_gather_into_tensor()` — replaces 339 collectives with 1. Not yet implemented.
+
+### Current approach: serialized sync (working)
+- `get_weights`: state_dict() + full_tensor() per param + torch.save → ~65s
+- This works because `get_weights` somehow doesn't hit the 120s timeout (possibly because the serialized path avoids RDMA manager initialization overhead)
+- Good enough for 1.5B model. For 7B+, the single-allgather optimization would be needed.

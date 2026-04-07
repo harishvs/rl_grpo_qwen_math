@@ -104,27 +104,35 @@ class GeneratorActor(Actor):
         }
 
     @endpoint
-    async def set_weight_handles(self, weight_buffers: dict) -> None:
-        """Store RDMA buffer handles from the learner for zero-copy weight sync.
+    async def set_weight_handles(self, rdma_info: dict) -> None:
+        """Store RDMA buffer handle and param metadata from the learner.
 
         Args:
-            weight_buffers: Dict of {param_name: (tensor, RDMABuffer)} from learner
+            rdma_info: Dict with 'buffer' (tensor, RDMABuffer) and 'meta' [(name, shape, dtype)]
         """
-        self._weight_buffers = weight_buffers
+        self._rdma_tensor, self._rdma_buf = rdma_info["buffer"]
+        self._rdma_meta = rdma_info["meta"]
 
     @endpoint
     async def sync_weights_rdma(self, version: int) -> None:
-        """Pull latest weights from learner via RDMA read_into.
+        """Pull latest weights from learner via single RDMA read.
 
-        Each param is read directly from the learner's GPU memory into
-        a local buffer, then loaded into the vLLM model. No serialization.
+        One 3GB read over EFA, then slice into individual params.
         """
-        # Read each param from learner's RDMA buffer into local tensor
+        # Read the entire flat buffer in one RDMA call
+        local_flat = torch.empty_like(self._rdma_tensor)
+        await self._rdma_buf.read_into(local_flat.view(torch.uint8).flatten())
+
+        # Slice back into individual params
         local_state_dict = {}
-        for name, (remote_tensor, rdma_buf) in self._weight_buffers.items():
-            local_tensor = torch.empty_like(remote_tensor)
-            await rdma_buf.read_into(local_tensor.view(torch.uint8).flatten())
-            local_state_dict[name] = local_tensor
+        offset = 0
+        for name, shape, dtype_str in self._rdma_meta:
+            numel = 1
+            for s in shape:
+                numel *= s
+            param = local_flat[offset:offset + numel].reshape(shape)
+            local_state_dict[name] = param
+            offset += numel
 
         def _load(model):
             model.load_state_dict(local_state_dict, strict=False)
