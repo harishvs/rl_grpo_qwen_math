@@ -399,22 +399,24 @@ class LearnerActor(Actor):
     async def send_weights_direct(self) -> float:
         """Gather FSDP shards via NCCL, then send full tensor to generator via gloo.
 
-        1. All ranks: flatten local shards → one NCCL all_gather (~1-2s)
-        2. Rank 0: send gathered tensor to generator via gloo pg (~3-5s)
-        No serialization. Returns time taken.
+        Uses state_dict() keys (HF namespace) so vLLM can load them.
         """
         import time
         t0 = time.time()
 
         rank = dist.get_rank()
         world_size = dist.get_world_size()
-        params = sorted(self.model.named_parameters(), key=lambda x: x[0])
 
-        # Each rank: flatten local shards
+        # Use state_dict() — returns HF-namespace keys with DTensor values
+        sd = self.model.state_dict()
+        sd_keys = sorted(sd.keys())
+
+        # Each rank: flatten local shards from state_dict DTensors
         local_parts = []
-        for name, param in params:
-            lt = param.data._local_tensor if hasattr(param.data, '_local_tensor') else param.data
-            local_parts.append(lt.detach().contiguous().view(-1))
+        for k in sd_keys:
+            v = sd[k]
+            lt = v._local_tensor if hasattr(v, '_local_tensor') else v.detach()
+            local_parts.append(lt.contiguous().view(-1))
         local_flat = torch.cat(local_parts)
 
         # NCCL all_gather
@@ -426,7 +428,6 @@ class LearnerActor(Actor):
 
         # Rank 0: send to generator via gloo
         if rank == 0 and hasattr(self, '_sync_pg'):
-            # Use PG's own send method — bypasses global group registration
             cpu_tensor = gathered.cpu().contiguous()
             self._sync_pg.send([cpu_tensor], 1, 0).wait()
 
@@ -434,20 +435,26 @@ class LearnerActor(Actor):
 
     @endpoint
     async def get_weight_meta(self) -> list:
-        """Return param metadata for the generator to reconstruct state_dict."""
+        """Return param metadata using state_dict() keys (HF namespace).
+
+        vLLM expects HF keys, not FSDP named_parameters() keys.
+        """
         rank = dist.get_rank()
         world_size = dist.get_world_size()
-        params = sorted(self.model.named_parameters(), key=lambda x: x[0])
+
+        sd = self.model.state_dict()
+        sd_keys = sorted(sd.keys())
 
         meta = []
         shard_offset = 0
-        for name, param in params:
-            lt = param.data._local_tensor if hasattr(param.data, '_local_tensor') else param.data
-            meta.append((name, list(param.data.shape), lt.numel(), shard_offset))
+        for k in sd_keys:
+            v = sd[k]
+            lt = v._local_tensor if hasattr(v, '_local_tensor') else v.detach()
+            meta.append((k, list(v.shape), lt.numel(), shard_offset))
             shard_offset += lt.numel()
 
         return {"meta": meta, "shard_size": shard_offset, "world_size": world_size,
-                "dtype": str(params[0][1].data.dtype)}
+                "dtype": str(next(iter(sd.values())).dtype)}
 
     @endpoint
     async def gather_weights_nccl(self) -> bytes:

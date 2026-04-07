@@ -222,11 +222,14 @@ async def main(config_path: str):
         else:
             train_metrics = {"loss": 0.0, "kl_divergence": 0.0, "clip_fraction": 0.0, "grad_norm": 0.0}
 
-        # 7. Sync weights to generator (every N steps)
+        # 7. Sync weights via NCCL gather + gloo direct send (every N steps)
         if step > 0 and step % config.trainer.weight_sync_interval == 0:
-            weights_list = await learner.get_weights.call()
-            weights_bytes = weights_list.values()[0]
-            await generator.update_weights.call_one(weights_bytes, step)
+            import asyncio
+            send_task = learner.send_weights_direct.call()
+            recv_task = generator.recv_weights_direct.call_one(weight_meta, step)
+            send_results, recv_time = await asyncio.gather(send_task, recv_task)
+            send_time = send_results.values()[0]
+            print(f"  Weight sync: send={send_time:.1f}s recv={recv_time:.1f}s", flush=True)
 
         # 8. Checkpoint
         if step > 0 and step % config.trainer.save_freq == 0:

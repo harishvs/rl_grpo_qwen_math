@@ -48,6 +48,7 @@
 - Point at logs, errors, failing tests — then resolve them.
 - Aim for zero context switching required from the user.
 - Fix failing CI tests without being told how.
+- **When there is an error, investigate it thoroughly. Don't give up and switch to the easiest crappy option.** Find the root cause, understand why it fails, and fix the actual problem. Reverting to a worse approach is not a fix.
 
 ## Task Management
 
