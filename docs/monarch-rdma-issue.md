@@ -137,6 +137,40 @@ resources:
     nvidia.com/gpu: "8"
 ```
 
+## EFA diagnostics output
+
+```
+$ ibv_devinfo (inside pod)
+hca_id: rdmap16s27
+    transport:          unspecified (4)
+    fw_ver:             0.0.0.0
+    node_guid:          0000:0000:0000:0000    ← all zeros
+    sys_image_guid:     0000:0000:0000:0000    ← all zeros
+    vendor_id:          0x1d0f                  (Amazon)
+    vendor_part_id:     61344                   (EFA)
+    hw_ver:             0xEFA0
+    port 1: PORT_ACTIVE, max_mtu=4096
+
+$ fi_info -p efa (inside pod)
+provider: efa
+    fabric: efa-direct
+    domain: rdmap16s27-rdm
+    type: FI_EP_RDM
+    protocol: FI_PROTO_EFA
+(4 devices total, all active)
+
+$ ls /dev/infiniband/
+uverbs0  uverbs1  uverbs2  uverbs3
+```
+
+**Note**: All `node_guid` and `sys_image_guid` values are `0000:0000:0000:0000`. EFA devices on AWS report zero GUIDs since they use a different addressing scheme than traditional InfiniBand. This may be relevant if Monarch's ibverbs backend relies on GUIDs for connection establishment.
+
+NCCL uses the 1 and works correctly:
+```
+NCCL INFO NET/Plugin: Loaded net plugin AWS Libfabric (v8)
+NCCL INFO Successfully loaded external plugin aws-ofi
+```
+
 ## Questions
 
 1. Is there any additional configuration required for `RDMABuffer.read_into()` to work on EKS with EFA and the ibverbs backend?
