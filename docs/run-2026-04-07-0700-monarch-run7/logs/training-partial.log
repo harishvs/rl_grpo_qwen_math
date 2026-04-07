@@ -1,0 +1,69 @@
+Prometheus metrics server on :9090
+No cached path provided
+Applying current job
+Job has started, connecting to current state
+Monarch internal logs are being written to /tmp/root/monarch_log.log; execution id root_Apr-07_05:47_763
+Setting up torch elastic env on learner mesh...
+Spawning actors...
+All actors spawned, initializing learner FSDP...
+Generating train split:   0%|          | 0/7473 [00:00<?, ? examples/s]Generating train split: 100%|██████████| 7473/7473 [00:00<00:00, 571272.97 examples/s]
+Generating test split:   0%|          | 0/1319 [00:00<?, ? examples/s]Generating test split: 100%|██████████| 1319/1319 [00:00<00:00, 353749.41 examples/s]
+  Learner: ({'hosts': 0/1, 'gpus': 0/8}, 'rank 0/8 initialized on cuda:0')
+  Learner: ({'hosts': 0/1, 'gpus': 1/8}, 'rank 1/8 initialized on cuda:1')
+  Learner: ({'hosts': 0/1, 'gpus': 2/8}, 'rank 2/8 initialized on cuda:2')
+  Learner: ({'hosts': 0/1, 'gpus': 3/8}, 'rank 3/8 initialized on cuda:3')
+  Learner: ({'hosts': 0/1, 'gpus': 4/8}, 'rank 4/8 initialized on cuda:4')
+  Learner: ({'hosts': 0/1, 'gpus': 5/8}, 'rank 5/8 initialized on cuda:5')
+  Learner: ({'hosts': 0/1, 'gpus': 6/8}, 'rank 6/8 initialized on cuda:6')
+  Learner: ({'hosts': 0/1, 'gpus': 7/8}, 'rank 7/8 initialized on cuda:7')
+Setting up direct weight sync (NCCL)...
+  Learner: rank 0 joined weight_sync gloo pg on grpo-monarch-0.grpo-monarch-svc.default.svc.cluster.local:29501
+  Generator: generator joined weight_sync gloo pg on grpo-monarch-0.grpo-monarch-svc.default.svc.cluster.local:29501
+  Weight meta: 3.55 GB total
+Training: 7473 problems, 32 prompts/step, 233 steps/epoch, 233 total steps
+step:0 | policy_loss=13.4705 | kl_divergence=0.0000 | mean_reward=0.1484 | clip_fraction=0.0085 | grad_norm=334.0000 | step_time_seconds=15.1395 | throughput_samples_per_sec=16.9094 | epoch=0
+step:1 | policy_loss=0.0002 | kl_divergence=0.0004 | mean_reward=0.1680 | clip_fraction=0.0048 | grad_norm=0.8906 | step_time_seconds=10.9031 | throughput_samples_per_sec=23.4795 | epoch=0
+step:2 | policy_loss=-0.0008 | kl_divergence=0.0009 | mean_reward=0.1406 | clip_fraction=0.0458 | grad_norm=308.0000 | step_time_seconds=10.5976 | throughput_samples_per_sec=24.1564 | epoch=0
+  Weight sync: send=5.5s recv=20.0s
+step:3 | policy_loss=-0.0049 | kl_divergence=0.0056 | mean_reward=0.1094 | clip_fraction=0.0125 | grad_norm=2.1406 | step_time_seconds=30.2578 | throughput_samples_per_sec=8.4606 | epoch=0
+step:4 | policy_loss=0.0001 | kl_divergence=0.0022 | mean_reward=0.1523 | clip_fraction=0.0171 | grad_norm=24.2500 | step_time_seconds=10.5867 | throughput_samples_per_sec=24.1813 | epoch=0
+step:5 | policy_loss=-0.0006 | kl_divergence=0.0026 | mean_reward=0.1445 | clip_fraction=0.0127 | grad_norm=8.6250 | step_time_seconds=10.2600 | throughput_samples_per_sec=24.9512 | epoch=0
+  Weight sync: send=5.4s recv=19.6s
+step:6 | policy_loss=24.9224 | kl_divergence=0.0026 | mean_reward=0.1680 | clip_fraction=0.0349 | grad_norm=672.0000 | step_time_seconds=30.2409 | throughput_samples_per_sec=8.4653 | epoch=0
+step:7 | policy_loss=-0.0002 | kl_divergence=0.0040 | mean_reward=0.1680 | clip_fraction=0.0182 | grad_norm=0.7461 | step_time_seconds=9.9332 | throughput_samples_per_sec=25.7721 | epoch=0
+step:8 | policy_loss=57.6401 | kl_divergence=0.0059 | mean_reward=0.2031 | clip_fraction=0.0291 | grad_norm=564.0000 | step_time_seconds=9.6257 | throughput_samples_per_sec=26.5955 | epoch=0
+  Weight sync: send=5.4s recv=17.8s
+step:9 | policy_loss=0.0004 | kl_divergence=0.0040 | mean_reward=0.2070 | clip_fraction=0.0133 | grad_norm=0.6914 | step_time_seconds=27.9228 | throughput_samples_per_sec=9.1681 | epoch=0
+step:10 | policy_loss=0.0018 | kl_divergence=0.0028 | mean_reward=0.2383 | clip_fraction=0.0164 | grad_norm=2.1094 | step_time_seconds=10.6429 | throughput_samples_per_sec=24.0536 | epoch=0
+step:11 | policy_loss=-0.0007 | kl_divergence=0.0028 | mean_reward=0.2070 | clip_fraction=0.0075 | grad_norm=0.7188 | step_time_seconds=10.3994 | throughput_samples_per_sec=24.6169 | epoch=0
+  Weight sync: send=5.4s recv=17.9s
+step:12 | policy_loss=-0.0005 | kl_divergence=0.0042 | mean_reward=0.2422 | clip_fraction=0.0194 | grad_norm=30.8750 | step_time_seconds=27.8847 | throughput_samples_per_sec=9.1807 | epoch=0
+step:13 | policy_loss=0.0021 | kl_divergence=0.0034 | mean_reward=0.2305 | clip_fraction=0.0107 | grad_norm=54.5000 | step_time_seconds=10.3071 | throughput_samples_per_sec=24.8372 | epoch=0
+step:14 | policy_loss=0.0069 | kl_divergence=0.0049 | mean_reward=0.1953 | clip_fraction=0.0449 | grad_norm=4.5312 | step_time_seconds=10.3019 | throughput_samples_per_sec=24.8497 | epoch=0
+  Weight sync: send=5.4s recv=17.9s
+step:15 | policy_loss=-0.0008 | kl_divergence=0.0036 | mean_reward=0.1641 | clip_fraction=0.0134 | grad_norm=3.5000 | step_time_seconds=28.4099 | throughput_samples_per_sec=9.0109 | epoch=0
+step:16 | policy_loss=0.0001 | kl_divergence=0.0040 | mean_reward=0.1562 | clip_fraction=0.0229 | grad_norm=243.0000 | step_time_seconds=12.1449 | throughput_samples_per_sec=21.0788 | epoch=0
+step:17 | policy_loss=0.0414 | kl_divergence=0.0042 | mean_reward=0.2539 | clip_fraction=0.0230 | grad_norm=0.8516 | step_time_seconds=10.2445 | throughput_samples_per_sec=24.9890 | epoch=0
+  Weight sync: send=5.4s recv=17.9s
+step:18 | policy_loss=-0.0004 | kl_divergence=0.0178 | mean_reward=0.2148 | clip_fraction=0.0397 | grad_norm=760.0000 | step_time_seconds=28.8591 | throughput_samples_per_sec=8.8707 | epoch=0
+step:19 | policy_loss=-0.0010 | kl_divergence=0.0115 | mean_reward=0.1641 | clip_fraction=0.0180 | grad_norm=6.9688 | step_time_seconds=10.1566 | throughput_samples_per_sec=25.2052 | epoch=0
+Checkpoint saved: /checkpoints/step_20
+step:20 | policy_loss=-0.0013 | kl_divergence=0.0034 | mean_reward=0.1914 | clip_fraction=0.0205 | grad_norm=1.2500 | step_time_seconds=11.4540 | throughput_samples_per_sec=22.3503 | epoch=0
+  Weight sync: send=5.4s recv=17.8s
+step:21 | policy_loss=0.0009 | kl_divergence=0.0056 | mean_reward=0.1484 | clip_fraction=0.0126 | grad_norm=0.6094 | step_time_seconds=29.1730 | throughput_samples_per_sec=8.7752 | epoch=0
+step:22 | policy_loss=4.4315 | kl_divergence=0.0037 | mean_reward=0.1797 | clip_fraction=0.0207 | grad_norm=75.5000 | step_time_seconds=10.7349 | throughput_samples_per_sec=23.8475 | epoch=0
+step:23 | policy_loss=-0.0005 | kl_divergence=0.0529 | mean_reward=0.2070 | clip_fraction=0.0414 | grad_norm=7.6875 | step_time_seconds=10.6927 | throughput_samples_per_sec=23.9415 | epoch=0
+  Weight sync: send=5.4s recv=17.7s
+step:24 | policy_loss=0.0003 | kl_divergence=0.0036 | mean_reward=0.2305 | clip_fraction=0.0128 | grad_norm=6.6562 | step_time_seconds=28.4856 | throughput_samples_per_sec=8.9870 | epoch=0
+step:25 | policy_loss=0.2382 | kl_divergence=0.0052 | mean_reward=0.1875 | clip_fraction=0.0278 | grad_norm=2.9688 | step_time_seconds=11.3289 | throughput_samples_per_sec=22.5971 | epoch=0
+step:26 | policy_loss=-0.0005 | kl_divergence=0.0031 | mean_reward=0.1953 | clip_fraction=0.0137 | grad_norm=14.8125 | step_time_seconds=10.3601 | throughput_samples_per_sec=24.7101 | epoch=0
+  Weight sync: send=5.4s recv=17.8s
+step:27 | policy_loss=-0.0017 | kl_divergence=0.0049 | mean_reward=0.1797 | clip_fraction=0.0148 | grad_norm=2.3906 | step_time_seconds=27.9735 | throughput_samples_per_sec=9.1515 | epoch=0
+step:28 | policy_loss=-0.0001 | kl_divergence=0.0048 | mean_reward=0.1680 | clip_fraction=0.0170 | grad_norm=0.7266 | step_time_seconds=10.0083 | throughput_samples_per_sec=25.5788 | epoch=0
+step:29 | policy_loss=-0.0017 | kl_divergence=0.0061 | mean_reward=0.2031 | clip_fraction=0.0196 | grad_norm=24.1250 | step_time_seconds=11.4603 | throughput_samples_per_sec=22.3379 | epoch=0
+  Weight sync: send=5.4s recv=17.8s
+step:30 | policy_loss=3.0394 | kl_divergence=0.0036 | mean_reward=0.2773 | clip_fraction=0.0264 | grad_norm=46.0000 | step_time_seconds=27.9684 | throughput_samples_per_sec=9.1532 | epoch=0
+step:31 | policy_loss=-0.0005 | kl_divergence=0.0027 | mean_reward=0.1328 | clip_fraction=0.0184 | grad_norm=164.0000 | step_time_seconds=11.3028 | throughput_samples_per_sec=22.6492 | epoch=0
+step:32 | policy_loss=-0.0009 | kl_divergence=0.0031 | mean_reward=0.2188 | clip_fraction=0.0130 | grad_norm=56.7500 | step_time_seconds=10.8126 | throughput_samples_per_sec=23.6761 | epoch=0
+  Weight sync: send=5.4s recv=17.8s
+step:33 | policy_loss=-0.0015 | kl_divergence=0.0108 | mean_reward=0.1953 | clip_fraction=0.0179 | grad_norm=1.6484 | step_time_seconds=29.1604 | throughput_samples_per_sec=8.7790 | epoch=0

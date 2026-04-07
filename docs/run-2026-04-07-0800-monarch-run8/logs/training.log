@@ -1,0 +1,360 @@
+Prometheus metrics server on :9090
+No cached path provided
+Applying current job
+Job has started, connecting to current state
+Monarch internal logs are being written to /tmp/root/monarch_log.log; execution id root_Apr-07_16:29_668
+Setting up torch elastic env on learner mesh...
+Spawning actors...
+All actors spawned, initializing learner FSDP...
+Generating train split:   0%|          | 0/7473 [00:00<?, ? examples/s]Generating train split: 100%|██████████| 7473/7473 [00:00<00:00, 96363.42 examples/s]
+Generating test split:   0%|          | 0/1319 [00:00<?, ? examples/s]Generating test split: 100%|██████████| 1319/1319 [00:00<00:00, 165488.69 examples/s]
+  Learner: ({'hosts': 0/1, 'gpus': 0/8}, 'rank 0/8 initialized on cuda:0')
+  Learner: ({'hosts': 0/1, 'gpus': 1/8}, 'rank 1/8 initialized on cuda:1')
+  Learner: ({'hosts': 0/1, 'gpus': 2/8}, 'rank 2/8 initialized on cuda:2')
+  Learner: ({'hosts': 0/1, 'gpus': 3/8}, 'rank 3/8 initialized on cuda:3')
+  Learner: ({'hosts': 0/1, 'gpus': 4/8}, 'rank 4/8 initialized on cuda:4')
+  Learner: ({'hosts': 0/1, 'gpus': 5/8}, 'rank 5/8 initialized on cuda:5')
+  Learner: ({'hosts': 0/1, 'gpus': 6/8}, 'rank 6/8 initialized on cuda:6')
+  Learner: ({'hosts': 0/1, 'gpus': 7/8}, 'rank 7/8 initialized on cuda:7')
+Setting up direct weight sync (NCCL)...
+  Learner: rank 0 joined weight_sync gloo pg on grpo-monarch-0.grpo-monarch-svc.default.svc.cluster.local:29501
+  Generator: generator joined weight_sync gloo pg on grpo-monarch-0.grpo-monarch-svc.default.svc.cluster.local:29501
+  Weight meta: 3.55 GB total
+Training: 7473 problems, 32 prompts/step, 233 steps/epoch, 233 total steps
+step:0 | policy_loss=-0.0006 | kl_divergence=0.0005 | mean_reward=0.1523 | clip_fraction=0.0070 | grad_norm=1.5547 | step_time_seconds=15.6188 | throughput_samples_per_sec=16.3905 | epoch=0
+step:1 | policy_loss=0.0520 | kl_divergence=0.0018 | mean_reward=0.1484 | clip_fraction=0.0188 | grad_norm=109.9668 | step_time_seconds=10.0824 | throughput_samples_per_sec=25.3907 | epoch=0
+step:2 | policy_loss=0.0006 | kl_divergence=0.0027 | mean_reward=0.1641 | clip_fraction=0.0342 | grad_norm=5.0508 | step_time_seconds=10.8231 | throughput_samples_per_sec=23.6532 | epoch=0
+  Weight sync: send=5.4s recv=20.0s
+step:3 | policy_loss=0.1080 | kl_divergence=0.0036 | mean_reward=0.1250 | clip_fraction=0.0432 | grad_norm=2.1406 | step_time_seconds=30.5253 | throughput_samples_per_sec=8.3865 | epoch=0
+step:4 | policy_loss=0.0014 | kl_divergence=0.0047 | mean_reward=0.1875 | clip_fraction=0.0205 | grad_norm=4.3242 | step_time_seconds=10.8884 | throughput_samples_per_sec=23.5113 | epoch=0
+step:5 | policy_loss=-0.0001 | kl_divergence=0.0038 | mean_reward=0.1914 | clip_fraction=0.0156 | grad_norm=19.6211 | step_time_seconds=10.5577 | throughput_samples_per_sec=24.2478 | epoch=0
+  Weight sync: send=5.4s recv=19.6s
+step:6 | policy_loss=0.0593 | kl_divergence=0.0026 | mean_reward=0.1641 | clip_fraction=0.0300 | grad_norm=17.4258 | step_time_seconds=29.7796 | throughput_samples_per_sec=8.5965 | epoch=0
+step:7 | policy_loss=0.0887 | kl_divergence=0.0018 | mean_reward=0.2148 | clip_fraction=0.0111 | grad_norm=4.9062 | step_time_seconds=10.6156 | throughput_samples_per_sec=24.1155 | epoch=0
+step:8 | policy_loss=0.0361 | kl_divergence=0.0045 | mean_reward=0.2891 | clip_fraction=0.0226 | grad_norm=3.1523 | step_time_seconds=9.8247 | throughput_samples_per_sec=26.0568 | epoch=0
+  Weight sync: send=5.4s recv=18.2s
+step:9 | policy_loss=-0.0004 | kl_divergence=0.0026 | mean_reward=0.1719 | clip_fraction=0.0081 | grad_norm=0.9805 | step_time_seconds=28.3706 | throughput_samples_per_sec=9.0234 | epoch=0
+step:10 | policy_loss=0.0004 | kl_divergence=0.0031 | mean_reward=0.1641 | clip_fraction=0.0205 | grad_norm=0.9355 | step_time_seconds=10.7194 | throughput_samples_per_sec=23.8818 | epoch=0
+step:11 | policy_loss=0.6423 | kl_divergence=0.0022 | mean_reward=0.1484 | clip_fraction=0.0193 | grad_norm=17.3750 | step_time_seconds=10.3703 | throughput_samples_per_sec=24.6858 | epoch=0
+  Weight sync: send=5.4s recv=17.9s
+step:12 | policy_loss=-0.0006 | kl_divergence=0.0025 | mean_reward=0.2578 | clip_fraction=0.0115 | grad_norm=1.9492 | step_time_seconds=28.2082 | throughput_samples_per_sec=9.0754 | epoch=0
+step:13 | policy_loss=-0.0008 | kl_divergence=0.0022 | mean_reward=0.2305 | clip_fraction=0.0190 | grad_norm=274.4961 | step_time_seconds=10.3063 | throughput_samples_per_sec=24.8391 | epoch=0
+step:14 | policy_loss=0.0102 | kl_divergence=0.0044 | mean_reward=0.1992 | clip_fraction=0.0258 | grad_norm=141.6719 | step_time_seconds=10.7588 | throughput_samples_per_sec=23.7944 | epoch=0
+  Weight sync: send=5.4s recv=18.1s
+step:15 | policy_loss=-0.0005 | kl_divergence=0.0024 | mean_reward=0.1680 | clip_fraction=0.0092 | grad_norm=166.6211 | step_time_seconds=29.4188 | throughput_samples_per_sec=8.7019 | epoch=0
+step:16 | policy_loss=0.1149 | kl_divergence=0.0019 | mean_reward=0.1523 | clip_fraction=0.0125 | grad_norm=53.9844 | step_time_seconds=11.6333 | throughput_samples_per_sec=22.0059 | epoch=0
+step:17 | policy_loss=4.8290 | kl_divergence=0.0065 | mean_reward=0.2383 | clip_fraction=0.0302 | grad_norm=5.0156 | step_time_seconds=10.1002 | throughput_samples_per_sec=25.3461 | epoch=0
+  Weight sync: send=5.4s recv=17.8s
+step:18 | policy_loss=-0.0007 | kl_divergence=0.0027 | mean_reward=0.1992 | clip_fraction=0.0100 | grad_norm=69.5859 | step_time_seconds=28.6409 | throughput_samples_per_sec=8.9383 | epoch=0
+step:19 | policy_loss=0.0000 | kl_divergence=0.0036 | mean_reward=0.2031 | clip_fraction=0.0135 | grad_norm=16.1250 | step_time_seconds=10.2587 | throughput_samples_per_sec=24.9545 | epoch=0
+Checkpoint saved: /checkpoints/step_20
+step:20 | policy_loss=-0.0001 | kl_divergence=0.0022 | mean_reward=0.1953 | clip_fraction=0.0104 | grad_norm=43.2148 | step_time_seconds=10.9714 | throughput_samples_per_sec=23.3335 | epoch=0
+  Weight sync: send=5.4s recv=17.5s
+step:21 | policy_loss=0.0021 | kl_divergence=0.0045 | mean_reward=0.1875 | clip_fraction=0.0101 | grad_norm=12.4688 | step_time_seconds=29.0772 | throughput_samples_per_sec=8.8041 | epoch=0
+step:22 | policy_loss=0.0002 | kl_divergence=0.0037 | mean_reward=0.2578 | clip_fraction=0.0130 | grad_norm=1.2266 | step_time_seconds=8.1396 | throughput_samples_per_sec=31.4512 | epoch=0
+step:23 | policy_loss=-0.0004 | kl_divergence=0.0024 | mean_reward=0.1836 | clip_fraction=0.0073 | grad_norm=640.3789 | step_time_seconds=10.6294 | throughput_samples_per_sec=24.0842 | epoch=0
+  Weight sync: send=5.4s recv=17.7s
+step:24 | policy_loss=0.0004 | kl_divergence=0.0019 | mean_reward=0.1758 | clip_fraction=0.0084 | grad_norm=20.1641 | step_time_seconds=28.5513 | throughput_samples_per_sec=8.9663 | epoch=0
+step:25 | policy_loss=0.0052 | kl_divergence=0.0132 | mean_reward=0.1875 | clip_fraction=0.0149 | grad_norm=1.1758 | step_time_seconds=10.8460 | throughput_samples_per_sec=23.6032 | epoch=0
+step:26 | policy_loss=1.4165 | kl_divergence=0.0028 | mean_reward=0.1875 | clip_fraction=0.0301 | grad_norm=43.0000 | step_time_seconds=11.0414 | throughput_samples_per_sec=23.1855 | epoch=0
+  Weight sync: send=5.4s recv=17.6s
+step:27 | policy_loss=-0.0009 | kl_divergence=0.0026 | mean_reward=0.1797 | clip_fraction=0.0127 | grad_norm=149.5742 | step_time_seconds=27.8257 | throughput_samples_per_sec=9.2001 | epoch=0
+step:28 | policy_loss=-0.0006 | kl_divergence=0.0021 | mean_reward=0.1953 | clip_fraction=0.0212 | grad_norm=86.5312 | step_time_seconds=10.5362 | throughput_samples_per_sec=24.2973 | epoch=0
+step:29 | policy_loss=-0.0003 | kl_divergence=0.0067 | mean_reward=0.2109 | clip_fraction=0.0133 | grad_norm=799.5000 | step_time_seconds=10.7392 | throughput_samples_per_sec=23.8380 | epoch=0
+  Weight sync: send=5.4s recv=17.8s
+step:30 | policy_loss=63.1735 | kl_divergence=0.0015 | mean_reward=0.1836 | clip_fraction=0.0216 | grad_norm=166.4688 | step_time_seconds=28.5905 | throughput_samples_per_sec=8.9540 | epoch=0
+step:31 | policy_loss=-0.0003 | kl_divergence=0.0024 | mean_reward=0.1250 | clip_fraction=0.0149 | grad_norm=3.2695 | step_time_seconds=10.8481 | throughput_samples_per_sec=23.5986 | epoch=0
+step:32 | policy_loss=-0.0006 | kl_divergence=0.0034 | mean_reward=0.1406 | clip_fraction=0.0102 | grad_norm=165.7109 | step_time_seconds=10.9297 | throughput_samples_per_sec=23.4224 | epoch=0
+  Weight sync: send=5.4s recv=17.8s
+step:33 | policy_loss=-0.0007 | kl_divergence=0.0042 | mean_reward=0.2070 | clip_fraction=0.0139 | grad_norm=190.5000 | step_time_seconds=29.3959 | throughput_samples_per_sec=8.7087 | epoch=0
+step:34 | policy_loss=-0.0000 | kl_divergence=0.0047 | mean_reward=0.2148 | clip_fraction=0.0111 | grad_norm=7.0078 | step_time_seconds=10.8371 | throughput_samples_per_sec=23.6226 | epoch=0
+step:35 | policy_loss=0.0025 | kl_divergence=0.0069 | mean_reward=0.2109 | clip_fraction=0.0299 | grad_norm=2.0898 | step_time_seconds=10.3247 | throughput_samples_per_sec=24.7950 | epoch=0
+  Weight sync: send=5.5s recv=17.7s
+step:36 | policy_loss=-0.0004 | kl_divergence=0.0033 | mean_reward=0.2617 | clip_fraction=0.0107 | grad_norm=10.4453 | step_time_seconds=28.3879 | throughput_samples_per_sec=9.0179 | epoch=0
+step:37 | policy_loss=-0.0002 | kl_divergence=0.0023 | mean_reward=0.1953 | clip_fraction=0.0093 | grad_norm=1.7812 | step_time_seconds=11.3006 | throughput_samples_per_sec=22.6537 | epoch=0
+step:38 | policy_loss=0.2828 | kl_divergence=0.0030 | mean_reward=0.1875 | clip_fraction=0.0138 | grad_norm=9.0234 | step_time_seconds=10.7485 | throughput_samples_per_sec=23.8172 | epoch=0
+  Weight sync: send=5.5s recv=17.6s
+step:39 | policy_loss=-0.0001 | kl_divergence=0.0047 | mean_reward=0.1836 | clip_fraction=0.0177 | grad_norm=1781.0000 | step_time_seconds=26.5946 | throughput_samples_per_sec=9.6260 | epoch=0
+Checkpoint saved: /checkpoints/step_40
+step:40 | policy_loss=-0.0002 | kl_divergence=0.0028 | mean_reward=0.1641 | clip_fraction=0.0081 | grad_norm=3.2285 | step_time_seconds=10.8377 | throughput_samples_per_sec=23.6213 | epoch=0
+step:41 | policy_loss=0.0002 | kl_divergence=0.0023 | mean_reward=0.1914 | clip_fraction=0.0093 | grad_norm=4.0547 | step_time_seconds=10.7488 | throughput_samples_per_sec=23.8167 | epoch=0
+  Weight sync: send=5.5s recv=17.6s
+step:42 | policy_loss=0.0012 | kl_divergence=0.0051 | mean_reward=0.2422 | clip_fraction=0.0163 | grad_norm=93.2500 | step_time_seconds=28.5366 | throughput_samples_per_sec=8.9709 | epoch=0
+step:43 | policy_loss=0.0001 | kl_divergence=0.0032 | mean_reward=0.1992 | clip_fraction=0.0121 | grad_norm=2.1094 | step_time_seconds=10.7673 | throughput_samples_per_sec=23.7757 | epoch=0
+step:44 | policy_loss=0.0001 | kl_divergence=0.0032 | mean_reward=0.2734 | clip_fraction=0.0145 | grad_norm=733.0000 | step_time_seconds=9.6645 | throughput_samples_per_sec=26.4886 | epoch=0
+  Weight sync: send=5.4s recv=17.5s
+step:45 | policy_loss=0.2260 | kl_divergence=0.0078 | mean_reward=0.2305 | clip_fraction=0.0243 | grad_norm=2.0781 | step_time_seconds=28.1010 | throughput_samples_per_sec=9.1100 | epoch=0
+step:46 | policy_loss=29.6499 | kl_divergence=0.0030 | mean_reward=0.2227 | clip_fraction=0.0159 | grad_norm=286.9844 | step_time_seconds=10.8333 | throughput_samples_per_sec=23.6309 | epoch=0
+step:47 | policy_loss=-0.0007 | kl_divergence=0.0025 | mean_reward=0.2031 | clip_fraction=0.0096 | grad_norm=7.2207 | step_time_seconds=10.1507 | throughput_samples_per_sec=25.2200 | epoch=0
+  Weight sync: send=5.4s recv=17.7s
+step:48 | policy_loss=-0.0002 | kl_divergence=0.0031 | mean_reward=0.2227 | clip_fraction=0.0102 | grad_norm=12.7812 | step_time_seconds=28.7558 | throughput_samples_per_sec=8.9025 | epoch=0
+step:49 | policy_loss=-0.0001 | kl_divergence=0.0044 | mean_reward=0.1719 | clip_fraction=0.0266 | grad_norm=424.5703 | step_time_seconds=10.3099 | throughput_samples_per_sec=24.8304 | epoch=0
+step:50 | policy_loss=0.0034 | kl_divergence=0.0059 | mean_reward=0.1992 | clip_fraction=0.0297 | grad_norm=14.1562 | step_time_seconds=10.7594 | throughput_samples_per_sec=23.7932 | epoch=0
+  Weight sync: send=5.5s recv=17.8s
+step:51 | policy_loss=0.0003 | kl_divergence=0.0028 | mean_reward=0.2148 | clip_fraction=0.0102 | grad_norm=2375.0000 | step_time_seconds=28.3776 | throughput_samples_per_sec=9.0212 | epoch=0
+step:52 | policy_loss=0.0011 | kl_divergence=0.0062 | mean_reward=0.1953 | clip_fraction=0.0202 | grad_norm=61.4375 | step_time_seconds=10.7070 | throughput_samples_per_sec=23.9095 | epoch=0
+step:53 | policy_loss=16.3385 | kl_divergence=0.0040 | mean_reward=0.2500 | clip_fraction=0.0397 | grad_norm=398.0000 | step_time_seconds=10.6384 | throughput_samples_per_sec=24.0637 | epoch=0
+  Weight sync: send=5.5s recv=18.0s
+step:54 | policy_loss=-0.0002 | kl_divergence=0.0037 | mean_reward=0.1875 | clip_fraction=0.0186 | grad_norm=4183.0000 | step_time_seconds=29.2697 | throughput_samples_per_sec=8.7462 | epoch=0
+step:55 | policy_loss=-0.0003 | kl_divergence=0.0066 | mean_reward=0.1836 | clip_fraction=0.0130 | grad_norm=6.6133 | step_time_seconds=10.5259 | throughput_samples_per_sec=24.3209 | epoch=0
+step:56 | policy_loss=-0.0002 | kl_divergence=0.0034 | mean_reward=0.1797 | clip_fraction=0.0115 | grad_norm=1.1230 | step_time_seconds=10.0767 | throughput_samples_per_sec=25.4052 | epoch=0
+  Weight sync: send=5.5s recv=17.9s
+step:57 | policy_loss=0.0014 | kl_divergence=0.0028 | mean_reward=0.2109 | clip_fraction=0.0122 | grad_norm=19.0625 | step_time_seconds=29.2631 | throughput_samples_per_sec=8.7482 | epoch=0
+step:58 | policy_loss=0.0002 | kl_divergence=0.0027 | mean_reward=0.2891 | clip_fraction=0.0209 | grad_norm=450.5039 | step_time_seconds=10.9929 | throughput_samples_per_sec=23.2878 | epoch=0
+step:59 | policy_loss=0.0003 | kl_divergence=0.0029 | mean_reward=0.2422 | clip_fraction=0.0136 | grad_norm=0.9082 | step_time_seconds=10.6114 | throughput_samples_per_sec=24.1249 | epoch=0
+  Weight sync: send=5.5s recv=17.8s
+Checkpoint saved: /checkpoints/step_60
+step:60 | policy_loss=-0.0002 | kl_divergence=0.0034 | mean_reward=0.1133 | clip_fraction=0.0110 | grad_norm=1.9961 | step_time_seconds=29.8576 | throughput_samples_per_sec=8.5740 | epoch=0
+step:61 | policy_loss=0.0000 | kl_divergence=0.0035 | mean_reward=0.1836 | clip_fraction=0.0100 | grad_norm=4.0547 | step_time_seconds=10.8583 | throughput_samples_per_sec=23.5764 | epoch=0
+step:62 | policy_loss=0.0006 | kl_divergence=0.0043 | mean_reward=0.2500 | clip_fraction=0.0183 | grad_norm=35.6250 | step_time_seconds=10.1682 | throughput_samples_per_sec=25.1766 | epoch=0
+  Weight sync: send=5.4s recv=17.8s
+step:63 | policy_loss=62.2947 | kl_divergence=0.0030 | mean_reward=0.2070 | clip_fraction=0.0275 | grad_norm=1974.0000 | step_time_seconds=28.8413 | throughput_samples_per_sec=8.8762 | epoch=0
+step:64 | policy_loss=0.3015 | kl_divergence=0.0034 | mean_reward=0.2148 | clip_fraction=0.0138 | grad_norm=404.6680 | step_time_seconds=10.9803 | throughput_samples_per_sec=23.3145 | epoch=0
+step:65 | policy_loss=-0.0011 | kl_divergence=0.0045 | mean_reward=0.2070 | clip_fraction=0.0150 | grad_norm=0.9863 | step_time_seconds=10.6009 | throughput_samples_per_sec=24.1490 | epoch=0
+  Weight sync: send=5.5s recv=17.9s
+step:66 | policy_loss=-0.0017 | kl_divergence=0.0052 | mean_reward=0.1992 | clip_fraction=0.0175 | grad_norm=194.0000 | step_time_seconds=28.6110 | throughput_samples_per_sec=8.9476 | epoch=0
+step:67 | policy_loss=-0.0006 | kl_divergence=0.0031 | mean_reward=0.2383 | clip_fraction=0.0114 | grad_norm=44.3867 | step_time_seconds=10.0081 | throughput_samples_per_sec=25.5793 | epoch=0
+step:68 | policy_loss=0.1040 | kl_divergence=0.0040 | mean_reward=0.2383 | clip_fraction=0.0240 | grad_norm=3234.0469 | step_time_seconds=9.9560 | throughput_samples_per_sec=25.7132 | epoch=0
+  Weight sync: send=5.4s recv=17.7s
+step:69 | policy_loss=0.0010 | kl_divergence=0.0068 | mean_reward=0.1992 | clip_fraction=0.0186 | grad_norm=2.1914 | step_time_seconds=28.2434 | throughput_samples_per_sec=9.0641 | epoch=0
+step:70 | policy_loss=0.0005 | kl_divergence=0.0042 | mean_reward=0.2031 | clip_fraction=0.0117 | grad_norm=1.1133 | step_time_seconds=10.6236 | throughput_samples_per_sec=24.0974 | epoch=0
+step:71 | policy_loss=7.7580 | kl_divergence=0.0036 | mean_reward=0.2500 | clip_fraction=0.0255 | grad_norm=205.5234 | step_time_seconds=10.2842 | throughput_samples_per_sec=24.8926 | epoch=0
+  Weight sync: send=5.5s recv=17.9s
+step:72 | policy_loss=-0.0006 | kl_divergence=0.0029 | mean_reward=0.2031 | clip_fraction=0.0120 | grad_norm=1.3828 | step_time_seconds=28.9118 | throughput_samples_per_sec=8.8545 | epoch=0
+step:73 | policy_loss=-0.0001 | kl_divergence=0.0035 | mean_reward=0.1836 | clip_fraction=0.0107 | grad_norm=409.5000 | step_time_seconds=10.8112 | throughput_samples_per_sec=23.6792 | epoch=0
+step:74 | policy_loss=0.0214 | kl_divergence=0.0032 | mean_reward=0.1836 | clip_fraction=0.0153 | grad_norm=715.0000 | step_time_seconds=10.7226 | throughput_samples_per_sec=23.8749 | epoch=0
+  Weight sync: send=5.4s recv=17.5s
+step:75 | policy_loss=-0.0002 | kl_divergence=0.0026 | mean_reward=0.1953 | clip_fraction=0.0088 | grad_norm=1.1836 | step_time_seconds=27.8398 | throughput_samples_per_sec=9.1955 | epoch=0
+step:76 | policy_loss=0.1619 | kl_divergence=0.0036 | mean_reward=0.2266 | clip_fraction=0.0201 | grad_norm=1.8125 | step_time_seconds=9.1636 | throughput_samples_per_sec=27.9366 | epoch=0
+step:77 | policy_loss=0.0223 | kl_divergence=0.0030 | mean_reward=0.2305 | clip_fraction=0.0148 | grad_norm=191.6484 | step_time_seconds=11.1580 | throughput_samples_per_sec=22.9433 | epoch=0
+  Weight sync: send=5.5s recv=17.9s
+step:78 | policy_loss=0.7156 | kl_divergence=0.0023 | mean_reward=0.2227 | clip_fraction=0.0410 | grad_norm=1926.0000 | step_time_seconds=28.6489 | throughput_samples_per_sec=8.9358 | epoch=0
+step:79 | policy_loss=0.0185 | kl_divergence=0.0037 | mean_reward=0.1875 | clip_fraction=0.0248 | grad_norm=280.7500 | step_time_seconds=10.9568 | throughput_samples_per_sec=23.3644 | epoch=0
+Checkpoint saved: /checkpoints/step_80
+step:80 | policy_loss=-0.0003 | kl_divergence=0.0028 | mean_reward=0.2109 | clip_fraction=0.0089 | grad_norm=81.6562 | step_time_seconds=11.5687 | throughput_samples_per_sec=22.1286 | epoch=0
+  Weight sync: send=5.5s recv=17.9s
+step:81 | policy_loss=0.0001 | kl_divergence=0.0078 | mean_reward=0.2227 | clip_fraction=0.0200 | grad_norm=823.6250 | step_time_seconds=28.2982 | throughput_samples_per_sec=9.0465 | epoch=0
+step:82 | policy_loss=0.8867 | kl_divergence=0.0043 | mean_reward=0.2070 | clip_fraction=0.0355 | grad_norm=24.5352 | step_time_seconds=10.3294 | throughput_samples_per_sec=24.7835 | epoch=0
+step:83 | policy_loss=-0.0013 | kl_divergence=0.0045 | mean_reward=0.1758 | clip_fraction=0.0172 | grad_norm=373.0000 | step_time_seconds=10.0037 | throughput_samples_per_sec=25.5905 | epoch=0
+  Weight sync: send=5.5s recv=17.9s
+step:84 | policy_loss=0.0004 | kl_divergence=0.0039 | mean_reward=0.1797 | clip_fraction=0.0154 | grad_norm=1.2480 | step_time_seconds=28.9351 | throughput_samples_per_sec=8.8474 | epoch=0
+step:85 | policy_loss=35.4270 | kl_divergence=0.0055 | mean_reward=0.1719 | clip_fraction=0.0491 | grad_norm=1110.0000 | step_time_seconds=10.8154 | throughput_samples_per_sec=23.6700 | epoch=0
+step:86 | policy_loss=0.0002 | kl_divergence=0.0026 | mean_reward=0.2539 | clip_fraction=0.0094 | grad_norm=30.0430 | step_time_seconds=7.9791 | throughput_samples_per_sec=32.0839 | epoch=0
+  Weight sync: send=5.5s recv=17.9s
+step:87 | policy_loss=-0.0001 | kl_divergence=0.0036 | mean_reward=0.1953 | clip_fraction=0.0126 | grad_norm=56.7500 | step_time_seconds=28.5526 | throughput_samples_per_sec=8.9659 | epoch=0
+step:88 | policy_loss=0.0444 | kl_divergence=0.0035 | mean_reward=0.1914 | clip_fraction=0.0192 | grad_norm=16.8672 | step_time_seconds=10.8960 | throughput_samples_per_sec=23.4949 | epoch=0
+step:89 | policy_loss=-0.0002 | kl_divergence=0.0039 | mean_reward=0.2461 | clip_fraction=0.0141 | grad_norm=3849.0000 | step_time_seconds=9.9546 | throughput_samples_per_sec=25.7168 | epoch=0
+  Weight sync: send=5.5s recv=17.9s
+step:90 | policy_loss=0.0051 | kl_divergence=0.0036 | mean_reward=0.2383 | clip_fraction=0.0273 | grad_norm=156.0000 | step_time_seconds=28.2764 | throughput_samples_per_sec=9.0535 | epoch=0
+step:91 | policy_loss=0.7310 | kl_divergence=0.0023 | mean_reward=0.2148 | clip_fraction=0.0201 | grad_norm=17.0938 | step_time_seconds=10.7286 | throughput_samples_per_sec=23.8614 | epoch=0
+step:92 | policy_loss=0.9763 | kl_divergence=0.0033 | mean_reward=0.1953 | clip_fraction=0.0232 | grad_norm=1910.0000 | step_time_seconds=11.3513 | throughput_samples_per_sec=22.5525 | epoch=0
+  Weight sync: send=5.5s recv=17.9s
+step:93 | policy_loss=0.0030 | kl_divergence=0.0065 | mean_reward=0.1328 | clip_fraction=0.0322 | grad_norm=251.5273 | step_time_seconds=28.4393 | throughput_samples_per_sec=9.0016 | epoch=0
+step:94 | policy_loss=0.0034 | kl_divergence=0.0075 | mean_reward=0.2031 | clip_fraction=0.0173 | grad_norm=575.0000 | step_time_seconds=10.6714 | throughput_samples_per_sec=23.9894 | epoch=0
+step:95 | policy_loss=-0.0003 | kl_divergence=0.0035 | mean_reward=0.2266 | clip_fraction=0.0241 | grad_norm=42.6875 | step_time_seconds=10.3532 | throughput_samples_per_sec=24.7266 | epoch=0
+  Weight sync: send=5.4s recv=17.7s
+step:96 | policy_loss=4.6644 | kl_divergence=0.0035 | mean_reward=0.2070 | clip_fraction=0.0273 | grad_norm=150.5000 | step_time_seconds=29.0745 | throughput_samples_per_sec=8.8050 | epoch=0
+step:97 | policy_loss=0.0714 | kl_divergence=0.0066 | mean_reward=0.2148 | clip_fraction=0.0199 | grad_norm=4.2422 | step_time_seconds=10.4794 | throughput_samples_per_sec=24.4289 | epoch=0
+step:98 | policy_loss=-0.0004 | kl_divergence=0.0051 | mean_reward=0.1523 | clip_fraction=0.0204 | grad_norm=476.5156 | step_time_seconds=10.6942 | throughput_samples_per_sec=23.9383 | epoch=0
+  Weight sync: send=5.5s recv=17.8s
+step:99 | policy_loss=0.0002 | kl_divergence=0.0041 | mean_reward=0.2578 | clip_fraction=0.0149 | grad_norm=13.1172 | step_time_seconds=28.0559 | throughput_samples_per_sec=9.1246 | epoch=0
+Checkpoint saved: /checkpoints/step_100
+step:100 | policy_loss=13.5852 | kl_divergence=0.0044 | mean_reward=0.1719 | clip_fraction=0.0205 | grad_norm=191.6562 | step_time_seconds=12.2149 | throughput_samples_per_sec=20.9580 | epoch=0
+step:101 | policy_loss=103.8999 | kl_divergence=0.0040 | mean_reward=0.2383 | clip_fraction=0.0233 | grad_norm=2768.5508 | step_time_seconds=10.4586 | throughput_samples_per_sec=24.4774 | epoch=0
+  Weight sync: send=5.4s recv=17.8s
+step:102 | policy_loss=-0.0009 | kl_divergence=0.0029 | mean_reward=0.2227 | clip_fraction=0.0115 | grad_norm=0.9883 | step_time_seconds=28.2623 | throughput_samples_per_sec=9.0580 | epoch=0
+step:103 | policy_loss=0.0004 | kl_divergence=0.0032 | mean_reward=0.1484 | clip_fraction=0.0178 | grad_norm=170.8008 | step_time_seconds=11.3241 | throughput_samples_per_sec=22.6066 | epoch=0
+step:104 | policy_loss=-0.0004 | kl_divergence=0.0039 | mean_reward=0.2578 | clip_fraction=0.0116 | grad_norm=40.9062 | step_time_seconds=11.0146 | throughput_samples_per_sec=23.2419 | epoch=0
+  Weight sync: send=5.4s recv=17.8s
+step:105 | policy_loss=21.8462 | kl_divergence=0.0059 | mean_reward=0.2031 | clip_fraction=0.0351 | grad_norm=396.0000 | step_time_seconds=28.3530 | throughput_samples_per_sec=9.0290 | epoch=0
+step:106 | policy_loss=-0.0005 | kl_divergence=0.0040 | mean_reward=0.1484 | clip_fraction=0.0187 | grad_norm=51.3164 | step_time_seconds=10.6575 | throughput_samples_per_sec=24.0207 | epoch=0
+step:107 | policy_loss=0.0003 | kl_divergence=0.0034 | mean_reward=0.2383 | clip_fraction=0.0151 | grad_norm=0.9453 | step_time_seconds=9.9314 | throughput_samples_per_sec=25.7767 | epoch=0
+  Weight sync: send=5.4s recv=17.8s
+step:108 | policy_loss=0.0542 | kl_divergence=0.0051 | mean_reward=0.1992 | clip_fraction=0.0404 | grad_norm=1064.6992 | step_time_seconds=29.0857 | throughput_samples_per_sec=8.8016 | epoch=0
+step:109 | policy_loss=382.8298 | kl_divergence=0.0051 | mean_reward=0.2773 | clip_fraction=0.0260 | grad_norm=90.5000 | step_time_seconds=10.2809 | throughput_samples_per_sec=24.9006 | epoch=0
+step:110 | policy_loss=-0.0000 | kl_divergence=0.0037 | mean_reward=0.2461 | clip_fraction=0.0135 | grad_norm=3.9102 | step_time_seconds=10.7742 | throughput_samples_per_sec=23.7605 | epoch=0
+  Weight sync: send=5.4s recv=17.8s
+step:111 | policy_loss=0.0277 | kl_divergence=0.0032 | mean_reward=0.2188 | clip_fraction=0.0591 | grad_norm=1240.7500 | step_time_seconds=28.6305 | throughput_samples_per_sec=8.9415 | epoch=0
+step:112 | policy_loss=-0.0011 | kl_divergence=0.0030 | mean_reward=0.2500 | clip_fraction=0.0181 | grad_norm=2244.7500 | step_time_seconds=11.5278 | throughput_samples_per_sec=22.2071 | epoch=0
+step:113 | policy_loss=-0.0006 | kl_divergence=0.0036 | mean_reward=0.1836 | clip_fraction=0.0315 | grad_norm=245.4688 | step_time_seconds=11.1310 | throughput_samples_per_sec=22.9988 | epoch=0
+  Weight sync: send=5.3s recv=17.6s
+step:114 | policy_loss=0.0011 | kl_divergence=0.0046 | mean_reward=0.2383 | clip_fraction=0.0142 | grad_norm=43.4805 | step_time_seconds=28.0005 | throughput_samples_per_sec=9.1427 | epoch=0
+step:115 | policy_loss=-0.0005 | kl_divergence=0.0025 | mean_reward=0.1602 | clip_fraction=0.0159 | grad_norm=1.7031 | step_time_seconds=11.0473 | throughput_samples_per_sec=23.1732 | epoch=0
+step:116 | policy_loss=-0.0004 | kl_divergence=0.0051 | mean_reward=0.1992 | clip_fraction=0.0147 | grad_norm=1241.7734 | step_time_seconds=10.3371 | throughput_samples_per_sec=24.7651 | epoch=0
+  Weight sync: send=5.4s recv=17.6s
+step:117 | policy_loss=-0.0004 | kl_divergence=0.0036 | mean_reward=0.2734 | clip_fraction=0.0111 | grad_norm=6.2344 | step_time_seconds=28.1563 | throughput_samples_per_sec=9.0921 | epoch=0
+step:118 | policy_loss=-0.0004 | kl_divergence=0.0047 | mean_reward=0.2500 | clip_fraction=0.0163 | grad_norm=347.0000 | step_time_seconds=10.6170 | throughput_samples_per_sec=24.1123 | epoch=0
+step:119 | policy_loss=1.2608 | kl_divergence=0.0049 | mean_reward=0.2422 | clip_fraction=0.0277 | grad_norm=407.0000 | step_time_seconds=10.3098 | throughput_samples_per_sec=24.8308 | epoch=0
+  Weight sync: send=5.5s recv=17.9s
+Checkpoint saved: /checkpoints/step_120
+step:120 | policy_loss=-0.0001 | kl_divergence=0.0048 | mean_reward=0.2461 | clip_fraction=0.0151 | grad_norm=2.6250 | step_time_seconds=29.3685 | throughput_samples_per_sec=8.7168 | epoch=0
+step:121 | policy_loss=-0.0001 | kl_divergence=0.0042 | mean_reward=0.2461 | clip_fraction=0.0140 | grad_norm=21.3555 | step_time_seconds=10.9766 | throughput_samples_per_sec=23.3223 | epoch=0
+step:122 | policy_loss=22.3844 | kl_divergence=0.0054 | mean_reward=0.2344 | clip_fraction=0.0423 | grad_norm=489.6250 | step_time_seconds=10.1336 | throughput_samples_per_sec=25.2626 | epoch=0
+  Weight sync: send=5.4s recv=17.8s
+step:123 | policy_loss=0.9999 | kl_divergence=0.0042 | mean_reward=0.2461 | clip_fraction=0.0320 | grad_norm=11.3125 | step_time_seconds=29.0249 | throughput_samples_per_sec=8.8200 | epoch=0
+step:124 | policy_loss=0.0788 | kl_divergence=0.0048 | mean_reward=0.1797 | clip_fraction=0.0188 | grad_norm=2.5430 | step_time_seconds=10.5628 | throughput_samples_per_sec=24.2360 | epoch=0
+step:125 | policy_loss=-0.0002 | kl_divergence=0.0072 | mean_reward=0.2188 | clip_fraction=0.0166 | grad_norm=131.6094 | step_time_seconds=10.3017 | throughput_samples_per_sec=24.8502 | epoch=0
+  Weight sync: send=5.4s recv=17.9s
+step:126 | policy_loss=0.0389 | kl_divergence=0.0058 | mean_reward=0.1992 | clip_fraction=0.0304 | grad_norm=33.3906 | step_time_seconds=27.8885 | throughput_samples_per_sec=9.1794 | epoch=0
+step:127 | policy_loss=0.0020 | kl_divergence=0.0078 | mean_reward=0.2148 | clip_fraction=0.0181 | grad_norm=344.2500 | step_time_seconds=11.2488 | throughput_samples_per_sec=22.7580 | epoch=0
+step:128 | policy_loss=-0.0003 | kl_divergence=0.0039 | mean_reward=0.1914 | clip_fraction=0.0104 | grad_norm=1.4102 | step_time_seconds=10.6156 | throughput_samples_per_sec=24.1156 | epoch=0
+  Weight sync: send=5.4s recv=17.8s
+step:129 | policy_loss=0.0064 | kl_divergence=0.0225 | mean_reward=0.2188 | clip_fraction=0.0225 | grad_norm=8.9141 | step_time_seconds=28.4238 | throughput_samples_per_sec=9.0065 | epoch=0
+step:130 | policy_loss=0.3482 | kl_divergence=0.0050 | mean_reward=0.2344 | clip_fraction=0.0298 | grad_norm=16.4609 | step_time_seconds=10.4675 | throughput_samples_per_sec=24.4567 | epoch=0
+step:131 | policy_loss=-0.0006 | kl_divergence=0.0044 | mean_reward=0.2695 | clip_fraction=0.0147 | grad_norm=30048.0000 | step_time_seconds=10.2611 | throughput_samples_per_sec=24.9487 | epoch=0
+  Weight sync: send=5.4s recv=17.8s
+step:132 | policy_loss=331.8481 | kl_divergence=0.0151 | mean_reward=0.1758 | clip_fraction=0.0288 | grad_norm=11976.5000 | step_time_seconds=28.5481 | throughput_samples_per_sec=8.9673 | epoch=0
+step:133 | policy_loss=-0.0024 | kl_divergence=0.0038 | mean_reward=0.1836 | clip_fraction=0.0155 | grad_norm=3.9883 | step_time_seconds=10.7059 | throughput_samples_per_sec=23.9121 | epoch=0
+step:134 | policy_loss=0.0003 | kl_divergence=0.0035 | mean_reward=0.2188 | clip_fraction=0.0171 | grad_norm=845.0000 | step_time_seconds=10.5767 | throughput_samples_per_sec=24.2041 | epoch=0
+  Weight sync: send=5.4s recv=17.7s
+step:135 | policy_loss=0.0003 | kl_divergence=0.0039 | mean_reward=0.1953 | clip_fraction=0.0112 | grad_norm=33.3125 | step_time_seconds=29.3310 | throughput_samples_per_sec=8.7280 | epoch=0
+step:136 | policy_loss=0.0000 | kl_divergence=0.0058 | mean_reward=0.1719 | clip_fraction=0.0228 | grad_norm=4227.7344 | step_time_seconds=11.0909 | throughput_samples_per_sec=23.0819 | epoch=0
+step:137 | policy_loss=1.2769 | kl_divergence=0.0067 | mean_reward=0.2578 | clip_fraction=0.0396 | grad_norm=179.0234 | step_time_seconds=10.9366 | throughput_samples_per_sec=23.4077 | epoch=0
+  Weight sync: send=5.4s recv=17.7s
+step:138 | policy_loss=-0.0002 | kl_divergence=0.0045 | mean_reward=0.2461 | clip_fraction=0.0290 | grad_norm=82.8438 | step_time_seconds=28.6036 | throughput_samples_per_sec=8.9499 | epoch=0
+step:139 | policy_loss=-0.0004 | kl_divergence=0.0053 | mean_reward=0.2578 | clip_fraction=0.0336 | grad_norm=239.1250 | step_time_seconds=11.0296 | throughput_samples_per_sec=23.2104 | epoch=0
+Checkpoint saved: /checkpoints/step_140
+step:140 | policy_loss=4.0931 | kl_divergence=0.0106 | mean_reward=0.2344 | clip_fraction=0.0279 | grad_norm=2092.0000 | step_time_seconds=11.3681 | throughput_samples_per_sec=22.5192 | epoch=0
+  Weight sync: send=5.5s recv=17.8s
+step:141 | policy_loss=0.0794 | kl_divergence=0.0089 | mean_reward=0.1875 | clip_fraction=0.0222 | grad_norm=2.4336 | step_time_seconds=28.6632 | throughput_samples_per_sec=8.9313 | epoch=0
+step:142 | policy_loss=2.7300 | kl_divergence=0.0060 | mean_reward=0.2148 | clip_fraction=0.0228 | grad_norm=166.5000 | step_time_seconds=10.9094 | throughput_samples_per_sec=23.4660 | epoch=0
+step:143 | policy_loss=0.0001 | kl_divergence=0.0045 | mean_reward=0.2227 | clip_fraction=0.0159 | grad_norm=3.0859 | step_time_seconds=10.2815 | throughput_samples_per_sec=24.8990 | epoch=0
+  Weight sync: send=5.4s recv=17.7s
+step:144 | policy_loss=0.0002 | kl_divergence=0.0048 | mean_reward=0.2344 | clip_fraction=0.0188 | grad_norm=97.1992 | step_time_seconds=28.8317 | throughput_samples_per_sec=8.8791 | epoch=0
+step:145 | policy_loss=0.5228 | kl_divergence=0.0070 | mean_reward=0.1406 | clip_fraction=0.0229 | grad_norm=9.0000 | step_time_seconds=10.9202 | throughput_samples_per_sec=23.4427 | epoch=0
+step:146 | policy_loss=0.0007 | kl_divergence=0.0036 | mean_reward=0.2148 | clip_fraction=0.0130 | grad_norm=134.0000 | step_time_seconds=10.5753 | throughput_samples_per_sec=24.2073 | epoch=0
+  Weight sync: send=5.5s recv=17.9s
+step:147 | policy_loss=0.2538 | kl_divergence=0.0126 | mean_reward=0.1406 | clip_fraction=0.0419 | grad_norm=7.7656 | step_time_seconds=28.5226 | throughput_samples_per_sec=8.9753 | epoch=0
+step:148 | policy_loss=0.7566 | kl_divergence=0.0078 | mean_reward=0.2070 | clip_fraction=0.0359 | grad_norm=127.0156 | step_time_seconds=11.7088 | throughput_samples_per_sec=21.8639 | epoch=0
+step:149 | policy_loss=0.0076 | kl_divergence=0.0135 | mean_reward=0.2344 | clip_fraction=0.0192 | grad_norm=533.5000 | step_time_seconds=10.6595 | throughput_samples_per_sec=24.0162 | epoch=0
+  Weight sync: send=5.5s recv=17.9s
+step:150 | policy_loss=-0.0001 | kl_divergence=0.0048 | mean_reward=0.1719 | clip_fraction=0.0165 | grad_norm=1685.7500 | step_time_seconds=28.7304 | throughput_samples_per_sec=8.9104 | epoch=0
+step:151 | policy_loss=-0.0054 | kl_divergence=0.0206 | mean_reward=0.2070 | clip_fraction=0.0474 | grad_norm=3.1836 | step_time_seconds=10.8622 | throughput_samples_per_sec=23.5680 | epoch=0
+step:152 | policy_loss=0.0008 | kl_divergence=0.0046 | mean_reward=0.2070 | clip_fraction=0.0214 | grad_norm=47.9961 | step_time_seconds=10.7084 | throughput_samples_per_sec=23.9065 | epoch=0
+  Weight sync: send=5.5s recv=18.0s
+step:153 | policy_loss=-0.0002 | kl_divergence=0.0079 | mean_reward=0.2070 | clip_fraction=0.0248 | grad_norm=160.0000 | step_time_seconds=27.7592 | throughput_samples_per_sec=9.2222 | epoch=0
+step:154 | policy_loss=6.4310 | kl_divergence=0.0047 | mean_reward=0.1953 | clip_fraction=0.0458 | grad_norm=68.4609 | step_time_seconds=10.8115 | throughput_samples_per_sec=23.6786 | epoch=0
+step:155 | policy_loss=28.9664 | kl_divergence=0.0068 | mean_reward=0.2461 | clip_fraction=0.0334 | grad_norm=1194.0000 | step_time_seconds=10.7122 | throughput_samples_per_sec=23.8979 | epoch=0
+  Weight sync: send=5.4s recv=17.8s
+step:156 | policy_loss=0.4304 | kl_divergence=0.0039 | mean_reward=0.1797 | clip_fraction=0.0300 | grad_norm=7.5312 | step_time_seconds=28.9258 | throughput_samples_per_sec=8.8502 | epoch=0
+step:157 | policy_loss=0.0001 | kl_divergence=0.0075 | mean_reward=0.2266 | clip_fraction=0.0348 | grad_norm=102.2500 | step_time_seconds=10.7437 | throughput_samples_per_sec=23.8280 | epoch=0
+step:158 | policy_loss=0.0170 | kl_divergence=0.0058 | mean_reward=0.2070 | clip_fraction=0.0168 | grad_norm=38.3594 | step_time_seconds=10.4475 | throughput_samples_per_sec=24.5036 | epoch=0
+  Weight sync: send=5.4s recv=17.7s
+step:159 | policy_loss=0.0122 | kl_divergence=0.0055 | mean_reward=0.2148 | clip_fraction=0.0250 | grad_norm=20.7344 | step_time_seconds=28.8239 | throughput_samples_per_sec=8.8815 | epoch=0
+Checkpoint saved: /checkpoints/step_160
+step:160 | policy_loss=-0.0007 | kl_divergence=0.0053 | mean_reward=0.1719 | clip_fraction=0.0171 | grad_norm=184.5898 | step_time_seconds=11.5326 | throughput_samples_per_sec=22.1979 | epoch=0
+step:161 | policy_loss=1.8372 | kl_divergence=0.0063 | mean_reward=0.2461 | clip_fraction=0.0263 | grad_norm=107.2500 | step_time_seconds=10.1706 | throughput_samples_per_sec=25.1706 | epoch=0
+  Weight sync: send=5.5s recv=17.9s
+step:162 | policy_loss=0.0002 | kl_divergence=0.0047 | mean_reward=0.1953 | clip_fraction=0.0150 | grad_norm=240.0625 | step_time_seconds=29.4102 | throughput_samples_per_sec=8.7045 | epoch=0
+step:163 | policy_loss=0.0005 | kl_divergence=0.0041 | mean_reward=0.1914 | clip_fraction=0.0106 | grad_norm=1032.5156 | step_time_seconds=10.8492 | throughput_samples_per_sec=23.5963 | epoch=0
+step:164 | policy_loss=5.9672 | kl_divergence=0.0047 | mean_reward=0.1875 | clip_fraction=0.0352 | grad_norm=243.1328 | step_time_seconds=10.5553 | throughput_samples_per_sec=24.2531 | epoch=0
+  Weight sync: send=5.4s recv=17.8s
+step:165 | policy_loss=-0.0000 | kl_divergence=0.0054 | mean_reward=0.2344 | clip_fraction=0.0156 | grad_norm=297.5000 | step_time_seconds=28.3778 | throughput_samples_per_sec=9.0211 | epoch=0
+step:166 | policy_loss=0.0002 | kl_divergence=0.0052 | mean_reward=0.1914 | clip_fraction=0.0323 | grad_norm=13.3438 | step_time_seconds=10.7420 | throughput_samples_per_sec=23.8316 | epoch=0
+step:167 | policy_loss=10.8531 | kl_divergence=0.0079 | mean_reward=0.2266 | clip_fraction=0.0655 | grad_norm=140.5000 | step_time_seconds=11.0927 | throughput_samples_per_sec=23.0782 | epoch=0
+  Weight sync: send=5.3s recv=17.6s
+step:168 | policy_loss=0.0004 | kl_divergence=0.0065 | mean_reward=0.2109 | clip_fraction=0.0572 | grad_norm=588.2500 | step_time_seconds=28.2185 | throughput_samples_per_sec=9.0721 | epoch=0
+step:169 | policy_loss=-0.0005 | kl_divergence=0.0059 | mean_reward=0.2539 | clip_fraction=0.0332 | grad_norm=38.4023 | step_time_seconds=10.9665 | throughput_samples_per_sec=23.3439 | epoch=0
+step:170 | policy_loss=0.0001 | kl_divergence=0.0052 | mean_reward=0.2227 | clip_fraction=0.0180 | grad_norm=66.2031 | step_time_seconds=10.4836 | throughput_samples_per_sec=24.4190 | epoch=0
+  Weight sync: send=5.4s recv=17.7s
+step:171 | policy_loss=0.0015 | kl_divergence=0.0067 | mean_reward=0.2188 | clip_fraction=0.0237 | grad_norm=4.3281 | step_time_seconds=28.8565 | throughput_samples_per_sec=8.8715 | epoch=0
+step:172 | policy_loss=1.5743 | kl_divergence=0.0046 | mean_reward=0.2109 | clip_fraction=0.0279 | grad_norm=508.0000 | step_time_seconds=10.6494 | throughput_samples_per_sec=24.0390 | epoch=0
+step:173 | policy_loss=0.0004 | kl_divergence=0.0054 | mean_reward=0.2188 | clip_fraction=0.0213 | grad_norm=36.7617 | step_time_seconds=10.2840 | throughput_samples_per_sec=24.8930 | epoch=0
+  Weight sync: send=5.5s recv=17.8s
+step:174 | policy_loss=0.0006 | kl_divergence=0.0048 | mean_reward=0.2266 | clip_fraction=0.0127 | grad_norm=111.6055 | step_time_seconds=28.2661 | throughput_samples_per_sec=9.0568 | epoch=0
+step:175 | policy_loss=0.7561 | kl_divergence=0.0059 | mean_reward=0.2305 | clip_fraction=0.0274 | grad_norm=218.6055 | step_time_seconds=10.8414 | throughput_samples_per_sec=23.6131 | epoch=0
+step:176 | policy_loss=-0.0012 | kl_divergence=0.0036 | mean_reward=0.2188 | clip_fraction=0.0142 | grad_norm=33.7305 | step_time_seconds=11.0163 | throughput_samples_per_sec=23.2382 | epoch=0
+  Weight sync: send=5.5s recv=17.9s
+step:177 | policy_loss=8.4968 | kl_divergence=0.0044 | mean_reward=0.2344 | clip_fraction=0.0285 | grad_norm=195.4688 | step_time_seconds=28.1928 | throughput_samples_per_sec=9.0803 | epoch=0
+step:178 | policy_loss=0.0005 | kl_divergence=0.0048 | mean_reward=0.1992 | clip_fraction=0.0157 | grad_norm=0.8809 | step_time_seconds=10.3562 | throughput_samples_per_sec=24.7194 | epoch=0
+step:179 | policy_loss=5.3023 | kl_divergence=0.0038 | mean_reward=0.1836 | clip_fraction=0.0391 | grad_norm=115.5625 | step_time_seconds=11.5459 | throughput_samples_per_sec=22.1723 | epoch=0
+  Weight sync: send=5.5s recv=17.9s
+Checkpoint saved: /checkpoints/step_180
+step:180 | policy_loss=0.0084 | kl_divergence=0.0063 | mean_reward=0.2109 | clip_fraction=0.0145 | grad_norm=85.6250 | step_time_seconds=29.9064 | throughput_samples_per_sec=8.5601 | epoch=0
+step:181 | policy_loss=0.0137 | kl_divergence=0.0092 | mean_reward=0.1875 | clip_fraction=0.0248 | grad_norm=32.5156 | step_time_seconds=10.5499 | throughput_samples_per_sec=24.2655 | epoch=0
+step:182 | policy_loss=18.7054 | kl_divergence=0.0067 | mean_reward=0.1992 | clip_fraction=0.0585 | grad_norm=160.6289 | step_time_seconds=10.8296 | throughput_samples_per_sec=23.6388 | epoch=0
+  Weight sync: send=5.5s recv=18.1s
+step:183 | policy_loss=5.7484 | kl_divergence=0.0070 | mean_reward=0.1602 | clip_fraction=0.0420 | grad_norm=1003.0000 | step_time_seconds=29.4546 | throughput_samples_per_sec=8.6914 | epoch=0
+step:184 | policy_loss=0.0010 | kl_divergence=0.0077 | mean_reward=0.2188 | clip_fraction=0.0266 | grad_norm=1424.4980 | step_time_seconds=10.2257 | throughput_samples_per_sec=25.0349 | epoch=0
+step:185 | policy_loss=7.4102 | kl_divergence=0.0053 | mean_reward=0.1641 | clip_fraction=0.0295 | grad_norm=95.0312 | step_time_seconds=10.7692 | throughput_samples_per_sec=23.7716 | epoch=0
+  Weight sync: send=5.5s recv=18.0s
+step:186 | policy_loss=-0.0004 | kl_divergence=0.0077 | mean_reward=0.1719 | clip_fraction=0.0129 | grad_norm=35.9805 | step_time_seconds=29.5856 | throughput_samples_per_sec=8.6529 | epoch=0
+step:187 | policy_loss=-0.0011 | kl_divergence=0.0052 | mean_reward=0.2188 | clip_fraction=0.0219 | grad_norm=370.0000 | step_time_seconds=11.6692 | throughput_samples_per_sec=21.9381 | epoch=0
+step:188 | policy_loss=20.9508 | kl_divergence=0.0066 | mean_reward=0.1680 | clip_fraction=0.0319 | grad_norm=1368.0000 | step_time_seconds=10.1712 | throughput_samples_per_sec=25.1691 | epoch=0
+  Weight sync: send=5.4s recv=17.8s
+step:189 | policy_loss=1.0851 | kl_divergence=0.0046 | mean_reward=0.3047 | clip_fraction=0.0214 | grad_norm=24.0625 | step_time_seconds=28.1234 | throughput_samples_per_sec=9.1027 | epoch=0
+step:190 | policy_loss=0.0001 | kl_divergence=0.0062 | mean_reward=0.1836 | clip_fraction=0.0249 | grad_norm=2266.2500 | step_time_seconds=10.9626 | throughput_samples_per_sec=23.3521 | epoch=0
+step:191 | policy_loss=9.4422 | kl_divergence=0.0064 | mean_reward=0.2461 | clip_fraction=0.0276 | grad_norm=932.7500 | step_time_seconds=10.4739 | throughput_samples_per_sec=24.4416 | epoch=0
+  Weight sync: send=5.5s recv=18.0s
+step:192 | policy_loss=1.9243 | kl_divergence=0.0069 | mean_reward=0.2148 | clip_fraction=0.0340 | grad_norm=65.9707 | step_time_seconds=29.6501 | throughput_samples_per_sec=8.6340 | epoch=0
+step:193 | policy_loss=-0.0015 | kl_divergence=0.0070 | mean_reward=0.2891 | clip_fraction=0.0197 | grad_norm=2.4219 | step_time_seconds=10.3607 | throughput_samples_per_sec=24.7088 | epoch=0
+step:194 | policy_loss=0.3404 | kl_divergence=0.0058 | mean_reward=0.2070 | clip_fraction=0.0531 | grad_norm=2793.3750 | step_time_seconds=11.1806 | throughput_samples_per_sec=22.8969 | epoch=0
+  Weight sync: send=5.5s recv=18.0s
+step:195 | policy_loss=0.0009 | kl_divergence=0.0086 | mean_reward=0.1758 | clip_fraction=0.0554 | grad_norm=2.5664 | step_time_seconds=29.4600 | throughput_samples_per_sec=8.6898 | epoch=0
+step:196 | policy_loss=0.0011 | kl_divergence=0.0044 | mean_reward=0.2070 | clip_fraction=0.0133 | grad_norm=0.9160 | step_time_seconds=11.1732 | throughput_samples_per_sec=22.9121 | epoch=0
+step:197 | policy_loss=0.0002 | kl_divergence=0.0068 | mean_reward=0.2188 | clip_fraction=0.0187 | grad_norm=180.4375 | step_time_seconds=9.1804 | throughput_samples_per_sec=27.8855 | epoch=0
+  Weight sync: send=5.4s recv=17.9s
+step:198 | policy_loss=-0.0002 | kl_divergence=0.0103 | mean_reward=0.2422 | clip_fraction=0.0213 | grad_norm=80.9062 | step_time_seconds=28.6785 | throughput_samples_per_sec=8.9265 | epoch=0
+step:199 | policy_loss=2.5709 | kl_divergence=0.0057 | mean_reward=0.1836 | clip_fraction=0.0326 | grad_norm=30.7695 | step_time_seconds=10.9635 | throughput_samples_per_sec=23.3502 | epoch=0
+Checkpoint saved: /checkpoints/step_200
+step:200 | policy_loss=0.0005 | kl_divergence=0.0068 | mean_reward=0.1602 | clip_fraction=0.0297 | grad_norm=248.3750 | step_time_seconds=11.0878 | throughput_samples_per_sec=23.0884 | epoch=0
+  Weight sync: send=5.5s recv=18.0s
+step:201 | policy_loss=0.0023 | kl_divergence=0.0290 | mean_reward=0.1797 | clip_fraction=0.0390 | grad_norm=59.0430 | step_time_seconds=29.3561 | throughput_samples_per_sec=8.7205 | epoch=0
+step:202 | policy_loss=-0.0007 | kl_divergence=0.0062 | mean_reward=0.2031 | clip_fraction=0.0338 | grad_norm=207.0000 | step_time_seconds=10.4224 | throughput_samples_per_sec=24.5625 | epoch=0
+step:203 | policy_loss=0.0006 | kl_divergence=0.0049 | mean_reward=0.2266 | clip_fraction=0.0159 | grad_norm=857.0000 | step_time_seconds=11.0396 | throughput_samples_per_sec=23.1893 | epoch=0
+  Weight sync: send=5.5s recv=17.9s
+step:204 | policy_loss=-0.0000 | kl_divergence=0.0058 | mean_reward=0.2227 | clip_fraction=0.0194 | grad_norm=108.8750 | step_time_seconds=28.6196 | throughput_samples_per_sec=8.9449 | epoch=0
+step:205 | policy_loss=-0.0000 | kl_divergence=0.0087 | mean_reward=0.2578 | clip_fraction=0.0244 | grad_norm=649.8750 | step_time_seconds=10.7436 | throughput_samples_per_sec=23.8281 | epoch=0
+step:206 | policy_loss=0.1310 | kl_divergence=0.0101 | mean_reward=0.1992 | clip_fraction=0.0272 | grad_norm=27.8438 | step_time_seconds=10.9833 | throughput_samples_per_sec=23.3080 | epoch=0
+  Weight sync: send=5.5s recv=17.9s
+step:207 | policy_loss=0.0013 | kl_divergence=0.0067 | mean_reward=0.2266 | clip_fraction=0.0186 | grad_norm=4.8398 | step_time_seconds=28.4637 | throughput_samples_per_sec=8.9939 | epoch=0
+step:208 | policy_loss=0.3403 | kl_divergence=0.0073 | mean_reward=0.2344 | clip_fraction=0.0287 | grad_norm=3.2734 | step_time_seconds=10.7610 | throughput_samples_per_sec=23.7897 | epoch=0
+step:209 | policy_loss=0.0007 | kl_divergence=0.0085 | mean_reward=0.1992 | clip_fraction=0.0309 | grad_norm=1.1758 | step_time_seconds=10.3276 | throughput_samples_per_sec=24.7879 | epoch=0
+  Weight sync: send=5.5s recv=17.9s
+step:210 | policy_loss=4.5010 | kl_divergence=0.0066 | mean_reward=0.2617 | clip_fraction=0.0418 | grad_norm=656.0000 | step_time_seconds=28.7923 | throughput_samples_per_sec=8.8913 | epoch=0
+step:211 | policy_loss=106.6965 | kl_divergence=0.0075 | mean_reward=0.1758 | clip_fraction=0.0411 | grad_norm=2032.5703 | step_time_seconds=10.4639 | throughput_samples_per_sec=24.4650 | epoch=0
+step:212 | policy_loss=20.1521 | kl_divergence=0.0106 | mean_reward=0.2305 | clip_fraction=0.0619 | grad_norm=1614.0000 | step_time_seconds=10.5778 | throughput_samples_per_sec=24.2017 | epoch=0
+  Weight sync: send=5.5s recv=17.9s
+step:213 | policy_loss=-0.0005 | kl_divergence=0.0068 | mean_reward=0.2773 | clip_fraction=0.0197 | grad_norm=842.0000 | step_time_seconds=28.9273 | throughput_samples_per_sec=8.8498 | epoch=0
+step:214 | policy_loss=7.3412 | kl_divergence=0.0111 | mean_reward=0.1992 | clip_fraction=0.0426 | grad_norm=156.7500 | step_time_seconds=11.0831 | throughput_samples_per_sec=23.0982 | epoch=0
+step:215 | policy_loss=-0.0001 | kl_divergence=0.0063 | mean_reward=0.1523 | clip_fraction=0.0212 | grad_norm=3.7344 | step_time_seconds=10.7767 | throughput_samples_per_sec=23.7549 | epoch=0
+  Weight sync: send=5.5s recv=17.9s
+step:216 | policy_loss=0.0001 | kl_divergence=0.0079 | mean_reward=0.2539 | clip_fraction=0.0262 | grad_norm=14.4219 | step_time_seconds=28.2097 | throughput_samples_per_sec=9.0749 | epoch=0
+step:217 | policy_loss=2.8220 | kl_divergence=0.0070 | mean_reward=0.1953 | clip_fraction=0.0440 | grad_norm=45.7852 | step_time_seconds=8.3329 | throughput_samples_per_sec=30.7217 | epoch=0
+step:218 | policy_loss=0.0224 | kl_divergence=0.0086 | mean_reward=0.2031 | clip_fraction=0.0241 | grad_norm=342.0000 | step_time_seconds=10.1383 | throughput_samples_per_sec=25.2508 | epoch=0
+  Weight sync: send=5.4s recv=17.9s
+step:219 | policy_loss=0.0044 | kl_divergence=0.0074 | mean_reward=0.2891 | clip_fraction=0.0199 | grad_norm=90.5742 | step_time_seconds=29.2672 | throughput_samples_per_sec=8.7470 | epoch=0
+Checkpoint saved: /checkpoints/step_220
+step:220 | policy_loss=0.0004 | kl_divergence=0.0042 | mean_reward=0.1836 | clip_fraction=0.0129 | grad_norm=143.4512 | step_time_seconds=11.5591 | throughput_samples_per_sec=22.1471 | epoch=0
+step:221 | policy_loss=2.3958 | kl_divergence=0.0089 | mean_reward=0.2656 | clip_fraction=0.0619 | grad_norm=25481.1250 | step_time_seconds=9.9778 | throughput_samples_per_sec=25.6569 | epoch=0
+  Weight sync: send=5.4s recv=17.9s
+step:222 | policy_loss=-0.0002 | kl_divergence=0.0075 | mean_reward=0.1602 | clip_fraction=0.0181 | grad_norm=454.4375 | step_time_seconds=28.7776 | throughput_samples_per_sec=8.8958 | epoch=0
+step:223 | policy_loss=-0.0004 | kl_divergence=0.0050 | mean_reward=0.2148 | clip_fraction=0.0164 | grad_norm=4292.0000 | step_time_seconds=11.0870 | throughput_samples_per_sec=23.0901 | epoch=0
+step:224 | policy_loss=0.1089 | kl_divergence=0.0083 | mean_reward=0.1836 | clip_fraction=0.0287 | grad_norm=401.7500 | step_time_seconds=10.7896 | throughput_samples_per_sec=23.7266 | epoch=0
+  Weight sync: send=5.4s recv=17.9s
+step:225 | policy_loss=88.9951 | kl_divergence=0.0141 | mean_reward=0.2031 | clip_fraction=0.0378 | grad_norm=1336.5625 | step_time_seconds=26.9865 | throughput_samples_per_sec=9.4862 | epoch=0
+step:226 | policy_loss=0.1938 | kl_divergence=0.0047 | mean_reward=0.2344 | clip_fraction=0.0234 | grad_norm=469.0703 | step_time_seconds=10.3636 | throughput_samples_per_sec=24.7018 | epoch=0
+step:227 | policy_loss=0.0009 | kl_divergence=0.0112 | mean_reward=0.1797 | clip_fraction=0.0286 | grad_norm=14.0078 | step_time_seconds=10.9380 | throughput_samples_per_sec=23.4046 | epoch=0
+  Weight sync: send=5.4s recv=17.9s
+step:228 | policy_loss=0.0006 | kl_divergence=0.0071 | mean_reward=0.1992 | clip_fraction=0.0416 | grad_norm=21.4102 | step_time_seconds=28.9037 | throughput_samples_per_sec=8.8570 | epoch=0
+step:229 | policy_loss=0.0017 | kl_divergence=0.0056 | mean_reward=0.1836 | clip_fraction=0.0271 | grad_norm=578.0000 | step_time_seconds=10.0566 | throughput_samples_per_sec=25.4560 | epoch=0
+step:230 | policy_loss=0.0002 | kl_divergence=0.0073 | mean_reward=0.1797 | clip_fraction=0.0278 | grad_norm=97.7500 | step_time_seconds=10.7109 | throughput_samples_per_sec=23.9009 | epoch=0
+  Weight sync: send=5.4s recv=17.8s
+step:231 | policy_loss=0.0159 | kl_divergence=0.0129 | mean_reward=0.1992 | clip_fraction=0.0239 | grad_norm=635.5938 | step_time_seconds=28.6387 | throughput_samples_per_sec=8.9390 | epoch=0
+step:232 | policy_loss=0.0002 | kl_divergence=0.0071 | mean_reward=0.2578 | clip_fraction=0.0217 | grad_norm=302.8125 | step_time_seconds=10.6427 | throughput_samples_per_sec=24.0540 | epoch=0
+Traceback (most recent call last):
+  File "/scripts/run_training.py", line 7, in <module>
+    asyncio.run(main(config_path))
+  File "/usr/lib/python3.12/asyncio/runners.py", line 194, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/base_events.py", line 687, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/app/src/monarch/main.py", line 255, in main
+    await learner.save_checkpoint.call_one(final_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: call_one requires exactly 1 actor, but mesh has 8

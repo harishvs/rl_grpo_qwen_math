@@ -302,7 +302,7 @@ class LearnerActor(Actor):
             "clip_fraction": total_clip / n_mini_batches,
             "grad_norm": total_grad_norm / n_mini_batches,
             "policy_version": self.policy_version,
-            "n_tokens": n_tokens,
+            "n_tokens": total_tokens,
         }
 
     @endpoint

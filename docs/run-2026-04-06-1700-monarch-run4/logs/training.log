@@ -1,0 +1,67 @@
+Prometheus metrics server on :9090
+No cached path provided
+Applying current job
+Job has started, connecting to current state
+Monarch internal logs are being written to /tmp/root/monarch_log.log; execution id root_Apr-06_22:14_373
+Setting up torch elastic env on learner mesh...
+Spawning actors...
+All actors spawned, initializing learner FSDP...
+Generating train split:   0%|          | 0/7473 [00:00<?, ? examples/s]Generating train split: 100%|██████████| 7473/7473 [00:00<00:00, 212336.37 examples/s]
+Generating test split:   0%|          | 0/1319 [00:00<?, ? examples/s]Generating test split: 100%|██████████| 1319/1319 [00:00<00:00, 153901.22 examples/s]
+  Learner: ({'hosts': 0/1, 'gpus': 0/8}, 'rank 0/8 initialized on cuda:0')
+  Learner: ({'hosts': 0/1, 'gpus': 1/8}, 'rank 1/8 initialized on cuda:1')
+  Learner: ({'hosts': 0/1, 'gpus': 2/8}, 'rank 2/8 initialized on cuda:2')
+  Learner: ({'hosts': 0/1, 'gpus': 3/8}, 'rank 3/8 initialized on cuda:3')
+  Learner: ({'hosts': 0/1, 'gpus': 4/8}, 'rank 4/8 initialized on cuda:4')
+  Learner: ({'hosts': 0/1, 'gpus': 5/8}, 'rank 5/8 initialized on cuda:5')
+  Learner: ({'hosts': 0/1, 'gpus': 6/8}, 'rank 6/8 initialized on cuda:6')
+  Learner: ({'hosts': 0/1, 'gpus': 7/8}, 'rank 7/8 initialized on cuda:7')
+Training: 7473 problems, 32 prompts/step, 233 steps/epoch, 233 total steps
+step:0 | policy_loss=-0.0003 | kl_divergence=0.0000 | mean_reward=0.1523 | clip_fraction=0.0027 | grad_norm=1.2500 | step_time_seconds=52.1039 | throughput_samples_per_sec=4.9133 | epoch=0
+step:1 | policy_loss=-0.0014 | kl_divergence=0.0016 | mean_reward=0.1289 | clip_fraction=0.0205 | grad_norm=0.9102 | step_time_seconds=10.4029 | throughput_samples_per_sec=24.6085 | epoch=0
+step:2 | policy_loss=-0.0011 | kl_divergence=0.0021 | mean_reward=0.1055 | clip_fraction=0.0132 | grad_norm=1120.0000 | step_time_seconds=11.2694 | throughput_samples_per_sec=22.7164 | epoch=0
+step:3 | policy_loss=21.3212 | kl_divergence=0.0030 | mean_reward=0.1602 | clip_fraction=0.0349 | grad_norm=1408.0000 | step_time_seconds=67.7608 | throughput_samples_per_sec=3.7780 | epoch=0
+step:4 | policy_loss=0.0013 | kl_divergence=0.0039 | mean_reward=0.1562 | clip_fraction=0.0189 | grad_norm=52.5000 | step_time_seconds=10.7650 | throughput_samples_per_sec=23.7807 | epoch=0
+step:5 | policy_loss=-0.0001 | kl_divergence=0.0037 | mean_reward=0.1992 | clip_fraction=0.0364 | grad_norm=960.0000 | step_time_seconds=10.7430 | throughput_samples_per_sec=23.8295 | epoch=0
+step:6 | policy_loss=0.0418 | kl_divergence=0.0044 | mean_reward=0.1719 | clip_fraction=0.0313 | grad_norm=25.6250 | step_time_seconds=67.8405 | throughput_samples_per_sec=3.7736 | epoch=0
+step:7 | policy_loss=-0.0004 | kl_divergence=0.0030 | mean_reward=0.2227 | clip_fraction=0.0143 | grad_norm=2.8125 | step_time_seconds=10.5650 | throughput_samples_per_sec=24.2309 | epoch=0
+step:8 | policy_loss=0.0008 | kl_divergence=0.0049 | mean_reward=0.2148 | clip_fraction=0.0224 | grad_norm=0.9297 | step_time_seconds=9.8796 | throughput_samples_per_sec=25.9120 | epoch=0
+step:9 | policy_loss=0.2819 | kl_divergence=0.0072 | mean_reward=0.1641 | clip_fraction=0.0417 | grad_norm=338.0000 | step_time_seconds=66.3150 | throughput_samples_per_sec=3.8604 | epoch=0
+step:10 | policy_loss=0.0005 | kl_divergence=0.0030 | mean_reward=0.1992 | clip_fraction=0.0162 | grad_norm=14.4375 | step_time_seconds=10.9474 | throughput_samples_per_sec=23.3845 | epoch=0
+step:11 | policy_loss=0.0292 | kl_divergence=0.0058 | mean_reward=0.2305 | clip_fraction=0.0211 | grad_norm=374.0000 | step_time_seconds=9.8895 | throughput_samples_per_sec=25.8860 | epoch=0
+Unhandled monarch error on the root actor, hostname=grpo-monarch-0, PID=216 at time 2026-04-06 22:21:47.291774: The actor tcp:10.0.3.129:26600,anon_1-17HE2PezAJyn,proc_agent[0] and all its descendants have failed.
+This occurred because the actor itself failed.
+The error was:
+ timeout waiting for message from proc mesh agent while querying for "logger-1B93qvKJZWuT". The process likely crashed
+Delivering KeyboardInterrupt to main thread to exit the program
+Unhandled monarch error on the root actor, hostname=grpo-monarch-0, PID=216 at time 2026-04-06 22:21:47.292006: The actor <monarch._src.actor.actor_mesh.RootClientActor client> and all its descendants have failed.
+This occurred because the actor itself failed.
+The error was:
+ SystemExit: 1This error occurred during the handling of another failure:
+The actor tcp:10.0.3.129:26600,anon_1-17HE2PezAJyn,proc_agent[0] and all its descendants have failed.
+This occurred because the actor itself failed.
+The error was:
+ timeout waiting for message from proc mesh agent while querying for "logger-1B93qvKJZWuT". The process likely crashed
+Delivering KeyboardInterrupt to main thread to exit the program
+Traceback (most recent call last):
+  File "/scripts/run_training.py", line 7, in <module>
+    asyncio.run(main(config_path))
+  File "/usr/lib/python3.12/asyncio/runners.py", line 194, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/base_events.py", line 687, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/app/src/monarch/main.py", line 205, in main
+    weights_list = await learner.get_weights.call()
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/monarch/_src/actor/future.py", line 151, in mark_complete
+    func, value = set_result, await coro
+                              ^^^^^^^^^^
+monarch._rust_bindings.monarch_hyperactor.supervision.SupervisionError: Endpoint call learner.get_weights() failed, Actor tcp:10.0.3.129:26600,anon_1-17HE2PezAJyn,proc_agent[0] exited because of the following reason: The actor tcp:10.0.3.129:26600,anon_1-17HE2PezAJyn,proc_agent[0] and all its descendants have failed.
+This occurred because the actor itself failed.
+The error was:
+ timeout waiting for message from proc mesh agent while querying for "learner-1DabhiFnmR2r". The process likely crashed
