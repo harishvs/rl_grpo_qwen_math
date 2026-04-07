@@ -279,54 +279,103 @@ class LearnerActor(Actor):
         }
 
     @endpoint
-    async def expose_weights(self) -> dict:
-        """Gather FSDP shards and expose as RDMA buffers for zero-copy weight sync.
+    async def set_param_server(self, param_server) -> None:
+        """Store reference to the parameter server for weight pushing."""
+        self._param_server = param_server
 
-        Returns dict of {param_name: (tensor, RDMABuffer)} that the generator
-        can read_into directly. Only rank 0 creates buffers — other ranks
-        participate in the FSDP collective but return empty dict.
+    @endpoint
+    async def push_to_param_server(self) -> None:
+        """Push this rank's local FSDP shards to the parameter server.
+
+        Each rank copies its GPU shard → CPU → sends bytes to param server.
+        No FSDP collectives — each rank only touches its own data.
+        """
+        params = sorted(self.model.named_parameters(), key=lambda x: x[0])
+
+        for name, param in params:
+            lt = param.data._local_tensor if hasattr(param.data, '_local_tensor') else param.data
+            cpu_bytes = lt.detach().cpu().contiguous().view(torch.uint8).numpy().tobytes()
+            offset = self._shard_layout[name]
+            await self._param_server.push_shard.call_one(offset, cpu_bytes)
+
+    @endpoint
+    async def init_param_server_layout(self) -> dict:
+        """Compute layout for the parameter server flat buffer.
+
+        Returns layout dict and total buffer size. All ranks return
+        the same layout since FSDP shards have identical sizes per rank.
+        """
+        rank = dist.get_rank() if dist.is_initialized() else 0
+        world_size = dist.get_world_size() if dist.is_initialized() else 1
+        params = sorted(self.model.named_parameters(), key=lambda x: x[0])
+
+        layout = {}
+        self._shard_layout = {}  # name -> offset for this rank's push
+        offset = 0
+
+        for name, param in params:
+            lt = param.data._local_tensor if hasattr(param.data, '_local_tensor') else param.data
+            shard_bytes = lt.numel() * lt.element_size()
+
+            # Each rank's shard goes at: rank * shard_bytes + param_base_offset
+            param_base = offset
+            for r in range(world_size):
+                if r == rank:
+                    self._shard_layout[name] = param_base + r * shard_bytes
+                layout_key = f"{name}__rank{r}"
+                layout[layout_key] = (param_base + r * shard_bytes, shard_bytes, str(lt.dtype), list(lt.shape))
+
+            # Full param metadata (for generator reconstruction)
+            full_shape = list(param.data.shape)
+            layout[name] = (param_base, shard_bytes * world_size, str(lt.dtype), full_shape)
+            offset += shard_bytes * world_size
+
+        return {"layout": layout, "total_bytes": offset, "world_size": world_size}
+
+    @endpoint
+    async def expose_shards(self) -> dict:
+        """Expose this rank's local FSDP shard as a single RDMA buffer.
+
+        No collectives — each rank copies its own GPU shards to a CPU buffer
+        and registers one RDMA handle. Generator reads all 8 rank buffers.
         """
         from monarch.rdma import RDMABuffer
 
         rank = dist.get_rank() if dist.is_initialized() else 0
+        params = sorted(self.model.named_parameters(), key=lambda x: x[0])
 
-        # All ranks participate in state_dict/full_tensor (FSDP collectives).
-        sd = self.model.state_dict()
-        param_names = sorted(sd.keys())
-        full_tensors = []
-        for k in param_names:
-            v = sd[k]
-            t = v.full_tensor().cpu().contiguous() if hasattr(v, 'full_tensor') else v.detach().cpu().contiguous()
-            full_tensors.append(t)
+        # Copy local shards from GPU to one flat CPU buffer
+        local_parts = []
+        meta = []
+        for name, param in params:
+            lt = param.data._local_tensor if hasattr(param.data, '_local_tensor') else param.data
+            local_parts.append(lt.detach().cpu().contiguous().view(-1).to(torch.bfloat16))
+            meta.append((name, list(param.data.shape), list(lt.shape)))
 
-        if rank == 0:
-            # One flat buffer + one RDMA handle (avoids 339 ibverbs registrations)
-            flat = torch.cat([t.view(-1).to(torch.bfloat16) for t in full_tensors])
-            self._rdma_flat = flat
-            self._rdma_buf = RDMABuffer(flat.view(torch.uint8).flatten())
-            meta = [(k, list(t.shape), str(t.dtype)) for k, t in zip(param_names, full_tensors)]
-            return {"buffer": (self._rdma_flat, self._rdma_buf), "meta": meta}
-        return {}
+        flat = torch.cat(local_parts)
+        self._shard_flat = flat
+        self._shard_buf = RDMABuffer(flat.view(torch.uint8).flatten())
+        self._shard_params = params  # keep ordered param list for refresh
+
+        return {
+            "rank": rank,
+            "buffer": (self._shard_flat, self._shard_buf),
+            "meta": meta,
+        }
 
     @endpoint
-    async def refresh_weights(self) -> None:
-        """Re-gather FSDP shards into the RDMA flat buffer after training.
+    async def refresh_shards(self) -> None:
+        """Copy latest GPU weights into the RDMA CPU buffer in-place.
 
-        All ranks participate in full_tensor() collectives. Rank 0 updates
-        the flat buffer in-place so the existing RDMA handle stays valid.
+        No collectives — each rank copies its own ~444 MB shard. Fast (~100ms).
+        RDMA buffer handle stays valid since the CPU memory address doesn't change.
         """
-        rank = dist.get_rank() if dist.is_initialized() else 0
-        sd = self.model.state_dict()
-
-        flat_parts = []
-        for k in sorted(sd.keys()):
-            v = sd[k]
-            t = v.full_tensor().cpu().contiguous() if hasattr(v, 'full_tensor') else v.detach().cpu().contiguous()
-            flat_parts.append(t.view(-1).to(torch.bfloat16))
-
-        if rank == 0 and hasattr(self, '_rdma_flat'):
-            new_flat = torch.cat(flat_parts)
-            self._rdma_flat.copy_(new_flat)
+        offset = 0
+        for name, param in self._shard_params:
+            lt = param.data._local_tensor if hasattr(param.data, '_local_tensor') else param.data
+            flat_shard = lt.detach().cpu().contiguous().view(-1).to(torch.bfloat16)
+            self._shard_flat[offset:offset + flat_shard.numel()].copy_(flat_shard)
+            offset += flat_shard.numel()
 
     @endpoint
     async def get_weights(self) -> bytes:

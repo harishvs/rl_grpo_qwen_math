@@ -141,7 +141,11 @@ KL completely stabilized with frozen reference model:
 - **Expert recommendation**: Use Monarch TorchStore to publish FSDP DTensor state between meshes. However, TorchStore is not available in torchmonarch 0.4.0 — it requires TorchForge (Slurm/MAST only).
 - **Potential optimization**: Access local shards via `dtensor._local_tensor`, concatenate, then one `all_gather_into_tensor()` — replaces 339 collectives with 1. Not yet implemented.
 
-### Current approach: serialized sync (working)
-- `get_weights`: state_dict() + full_tensor() per param + torch.save → ~65s
-- This works because `get_weights` somehow doesn't hit the 120s timeout (possibly because the serialized path avoids RDMA manager initialization overhead)
-- Good enough for 1.5B model. For 7B+, the single-allgather optimization would be needed.
+### Attempt 5: Parameter Server design
+Root cause of RDMA failures: RDMABuffers created in child actor processes are invisible to the worker process's IbvManagerActor. The generator's RDMA manager can't negotiate with a buffer in a different process.
+
+Solution: ParameterServerActor spawned in its own CPU process on the learner host.
+- Owns a flat CPU buffer + RDMABuffer (in same process as RDMA manager)
+- Learner ranks push their local shards via Monarch messages (intra-node, no FSDP collective)
+- Generator reads the flat buffer via one RDMA read_into call
+- No all-gather, no cross-process RDMA, no timeout risk

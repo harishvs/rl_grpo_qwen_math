@@ -74,20 +74,35 @@ An official example showing:
 
 ## Weight sync challenge: FSDP + RDMA
 
-The official GRPO example uses RDMA for weight sync (single-GPU learner → generator). With FSDP, this is much harder:
+The official GRPO example uses RDMA for weight sync (single-GPU learner → generator). With FSDP across multiple processes, this doesn't work for two reasons:
 
-- Each `DTensor.full_tensor()` is a separate all-gather collective
-- A 1.5B model has 339 parameters → 339 sequential collectives → exceeds Monarch's 120s supervision timeout
-- No PyTorch API exists to gather an entire FSDP2 state_dict in one collective
-- We fell back to serialized `torch.save/load` (~65s per sync)
+### Problem 1: full_tensor() timeout
 
-**Suggestion**: TorchStore support on K8s would solve this — learner publishes DTensor state to the store, generator subscribes and refreshes. The FSDP shard management stays internal to Monarch/PyTorch instead of requiring manual all-gathers.
+Each `DTensor.full_tensor()` is a separate all-gather collective. A 1.5B model has 339 parameters → 339 sequential collectives → exceeds Monarch's 120s supervision watchdog timeout. No PyTorch API exists to gather an entire FSDP2 state_dict in one collective.
 
-**Alternative**: An `all_gather_flat()` API that concatenates all local FSDP shards and gathers in one NCCL call would enable efficient RDMA weight sync with FSDP.
+### Problem 2: Cross-process RDMA buffer isolation
+
+We tried a shard-based approach: each learner rank exposes its local FSDP shard (~444 MB) as an RDMABuffer (no all-gather needed). But RDMA buffers created inside a Monarch actor process are not accessible from actors in other processes or nodes.
+
+**What happens**: The learner's rank 0 process creates an `RDMABuffer`. The generator on Node 1 calls `read_into()`. The generator's `IbvManagerActor` sends a `RequestBuffer` message to the learner node's worker loop RDMA manager — but the buffer was registered in rank 0's child process, not the worker loop. The worker loop's RDMA manager doesn't know about it. Result: `delivery timeout`.
+
+This works in the single-GPU GRPO example because the learner actor and its RDMA manager share the same process. With multi-process FSDP, each rank runs in a separate process spawned by the worker loop.
+
+### Current workaround
+
+Serialized weight sync via `torch.save/load` over Monarch actor RPC (~65s per sync for 3GB model). Works but slow.
+
+### Suggestions
+
+1. **Cross-process RDMA buffer visibility**: Allow RDMA buffers registered in child actor processes to be accessible by the parent worker loop's RDMA manager, or provide an API to register buffers at the worker loop level from within actor endpoints.
+
+2. **TorchStore on K8s**: Learner publishes DTensor state to TorchStore, generator subscribes. TorchStore not currently available in torchmonarch 0.4.0 on Kubernetes.
+
+3. **Batched all-gather API**: An `all_gather_flat()` that concatenates all local FSDP shards and gathers in one NCCL call would make the full_tensor approach viable within the 120s timeout.
 
 ## Reference implementation
 
-https://github.com/harishrao1/rl_grpo_qwen_math (feat/monarch-grpo branch)
+https://github.com/harishvs/rl_grpo_qwen_math (feat/monarch-grpo branch)
 
 Working FSDP + Monarch actor implementation with:
 - `setup_torch_elastic_env` + `dist.init_process_group` for NCCL setup

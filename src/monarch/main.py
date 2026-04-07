@@ -29,6 +29,7 @@ from src.monarch.actors.generator import GeneratorActor
 from src.monarch.actors.learner import LearnerActor
 from src.monarch.actors.dataset_actor import DatasetActor
 from src.monarch.actors.replay_buffer import ReplayBufferActor
+from src.monarch.actors.param_server import ParameterServerActor
 
 
 async def main(config_path: str):
@@ -116,6 +117,31 @@ async def main(config_path: str):
     for r in init_results:
         print(f"  Learner: {r}", flush=True)
 
+    # --- Parameter Server for RDMA weight sync ---
+    # Spawned on learner host in a CPU process (same node as FSDP ranks).
+    # RDMA buffer lives in this process where IbvManagerActor can see it.
+    print("Setting up parameter server for RDMA weight sync...", flush=True)
+    ps_procs = learner_host.spawn_procs(per_host={"cpus": 1})
+
+    # Get layout from learner (any rank — layout is identical across ranks)
+    layout_info = await learner.init_param_server_layout.call()
+    layout_data = layout_info.values()[0]
+    total_bytes = layout_data["total_bytes"]
+
+    param_server = ps_procs.spawn("param_server", ParameterServerActor, total_bytes=total_bytes)
+    await param_server.set_layout.call_one(layout_data["layout"])
+
+    # Tell learner ranks about the param server
+    await learner.set_param_server.call(param_server)
+
+    # Initial weight push: all ranks copy shards to param server
+    await learner.push_to_param_server.call()
+
+    # Give generator the RDMA handle
+    ps_handle = await param_server.get_rdma_handle.call_one()
+    await generator.set_ps_handle.call_one(ps_handle)
+    print(f"RDMA param server ready: {total_bytes / 1e9:.2f} GB buffer", flush=True)
+
     # --- Training loop ---
     prompts_per_step = config.data.train_batch_size // config.generator.group_size
     dataset_stats = await dataset.get_stats.call_one()
@@ -200,11 +226,12 @@ async def main(config_path: str):
         else:
             train_metrics = {"loss": 0.0, "kl_divergence": 0.0, "clip_fraction": 0.0, "grad_norm": 0.0}
 
-        # 7. Sync weights to generator (every N steps)
+        # 7. Sync weights via param server RDMA (every N steps)
         if step > 0 and step % config.trainer.weight_sync_interval == 0:
-            weights_list = await learner.get_weights.call()
-            weights_bytes = weights_list.values()[0]
-            await generator.update_weights.call_one(weights_bytes, step)
+            # Each rank pushes its local shards to param server (CPU copy, no collective)
+            await learner.push_to_param_server.call()
+            # Generator reads entire buffer via one RDMA read
+            await generator.sync_weights_from_ps.call_one(step)
 
         # 8. Checkpoint
         if step > 0 and step % config.trainer.save_freq == 0:

@@ -104,38 +104,93 @@ class GeneratorActor(Actor):
         }
 
     @endpoint
-    async def set_weight_handles(self, rdma_info: dict) -> None:
-        """Store RDMA buffer handle and param metadata from the learner.
+    async def set_ps_handle(self, rdma_info: dict) -> None:
+        """Store param server RDMA handle and layout.
 
         Args:
-            rdma_info: Dict with 'buffer' (tensor, RDMABuffer) and 'meta' [(name, shape, dtype)]
+            rdma_info: Dict with 'buffer' (tensor, RDMABuffer) and 'layout'
         """
-        self._rdma_tensor, self._rdma_buf = rdma_info["buffer"]
-        self._rdma_meta = rdma_info["meta"]
+        self._ps_flat, self._ps_rdma_buf = rdma_info["buffer"]
+        self._ps_layout = rdma_info["layout"]
+
+    @endpoint
+    async def sync_weights_from_ps(self, version: int) -> None:
+        """Read full model weights from parameter server via one RDMA read.
+
+        One ~3GB read over EFA, then slice into individual params using layout.
+        """
+        # One RDMA read for entire flat buffer
+        local_flat = torch.empty_like(self._ps_flat)
+        await self._ps_rdma_buf.read_into(local_flat)
+
+        # Reconstruct state_dict from layout
+        state_dict = {}
+        for name, (offset, nbytes, dtype_str, shape) in self._ps_layout.items():
+            if "__rank" in name:
+                continue  # skip per-rank entries, use full param entries only
+            dtype = getattr(torch, dtype_str.replace("torch.", ""))
+            param_bytes = local_flat[offset:offset + nbytes]
+            state_dict[name] = param_bytes.view(dtype).reshape(shape)
+
+        def _load(model):
+            model.load_state_dict(state_dict, strict=False)
+
+        self.engine.apply_model(_load)
+        self.policy_version = version
+
+    @endpoint
+    async def set_shard_handles(self, shard_list: list) -> None:
+        """Store RDMA shard handles from all learner ranks.
+
+        Args:
+            shard_list: List of 8 dicts, each with {rank, buffer: (tensor, RDMABuffer), meta}
+        """
+        # Sort by rank to ensure correct shard ordering
+        self._shards = sorted(shard_list, key=lambda s: s["rank"])
+        self._shard_meta = self._shards[0]["meta"]  # meta is same across ranks
 
     @endpoint
     async def sync_weights_rdma(self, version: int) -> None:
-        """Pull latest weights from learner via single RDMA read.
+        """Pull shards from all 8 learner ranks via RDMA, reconstruct full tensors.
 
-        One 3GB read over EFA, then slice into individual params.
+        8 parallel RDMA reads of ~444 MB each, then concatenate per-param.
+        No collectives on the learner side.
         """
-        # Read the entire flat buffer in one RDMA call
-        local_flat = torch.empty_like(self._rdma_tensor)
-        await self._rdma_buf.read_into(local_flat.view(torch.uint8).flatten())
+        import asyncio
 
-        # Slice back into individual params
-        local_state_dict = {}
-        offset = 0
-        for name, shape, dtype_str in self._rdma_meta:
-            numel = 1
-            for s in shape:
-                numel *= s
-            param = local_flat[offset:offset + numel].reshape(shape)
-            local_state_dict[name] = param
-            offset += numel
+        # Read all 8 shards in parallel
+        local_flats = []
+        for shard_info in self._shards:
+            remote_tensor, rdma_buf = shard_info["buffer"]
+            local = torch.empty_like(remote_tensor)
+            await rdma_buf.read_into(local.view(torch.uint8).flatten())
+            local_flats.append(local)
+
+        # Reconstruct full tensors by concatenating shards per param
+        state_dict = {}
+        offsets = [0] * len(self._shards)  # track position in each rank's flat buffer
+
+        for param_name, full_shape, local_shape in self._shard_meta:
+            local_numel = 1
+            for s in local_shape:
+                local_numel *= s
+
+            # Gather this param's shard from each rank
+            param_shards = []
+            for r, flat in enumerate(local_flats):
+                shard = flat[offsets[r]:offsets[r] + local_numel]
+                param_shards.append(shard)
+                offsets[r] += local_numel
+
+            # Concatenate shards → full param (FSDP shards along flattened dim)
+            full_flat = torch.cat(param_shards)
+            full_numel = 1
+            for s in full_shape:
+                full_numel *= s
+            state_dict[param_name] = full_flat[:full_numel].reshape(full_shape)
 
         def _load(model):
-            model.load_state_dict(local_state_dict, strict=False)
+            model.load_state_dict(state_dict, strict=False)
 
         self.engine.apply_model(_load)
         self.policy_version = version
