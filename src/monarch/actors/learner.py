@@ -378,8 +378,66 @@ class LearnerActor(Actor):
             offset += flat_shard.numel()
 
     @endpoint
+    async def gather_weights_nccl(self) -> bytes:
+        """Gather FSDP shards via one NCCL all_gather, then serialize.
+
+        Instead of 339 per-param full_tensor() calls, each rank flattens
+        its local shards into one tensor, then one all_gather_into_tensor
+        collects everything on rank 0. One collective instead of 339.
+        """
+        rank = dist.get_rank()
+        world_size = dist.get_world_size()
+        params = sorted(self.model.named_parameters(), key=lambda x: x[0])
+
+        # Each rank: flatten all local shards into one contiguous GPU tensor
+        local_parts = []
+        meta = []  # (name, full_shape, shard_numel) for reconstruction
+        for name, param in params:
+            lt = param.data._local_tensor if hasattr(param.data, '_local_tensor') else param.data
+            local_parts.append(lt.detach().contiguous().view(-1))
+            meta.append((name, list(param.data.shape), lt.numel()))
+
+        local_flat = torch.cat(local_parts)  # ~444 MB on GPU
+
+        # One NCCL all_gather: all ranks contribute, rank 0 gets full buffer
+        if world_size > 1:
+            gathered = torch.empty(local_flat.numel() * world_size, dtype=local_flat.dtype, device=local_flat.device)
+            dist.all_gather_into_tensor(gathered, local_flat)
+        else:
+            gathered = local_flat
+
+        # Rank 0: reconstruct state_dict from gathered shards and serialize
+        # gathered layout: [rank0_all_params | rank1_all_params | ... | rank7_all_params]
+        if rank == 0:
+            state_dict = {}
+            shard_size = local_flat.numel()  # total elements per rank
+
+            # Precompute param offsets within each rank's shard
+            param_offsets = []
+            offset = 0
+            for _, _, shard_numel in meta:
+                param_offsets.append(offset)
+                offset += shard_numel
+
+            for i, (name, full_shape, shard_numel) in enumerate(meta):
+                param_shards = []
+                for r in range(world_size):
+                    start = r * shard_size + param_offsets[i]
+                    param_shards.append(gathered[start:start + shard_numel])
+                full_param = torch.cat(param_shards)
+                full_numel = 1
+                for s in full_shape:
+                    full_numel *= s
+                state_dict[name] = full_param[:full_numel].reshape(full_shape).cpu()
+
+            buf = io.BytesIO()
+            torch.save(state_dict, buf)
+            return buf.getvalue()
+        return b""
+
+    @endpoint
     async def get_weights(self) -> bytes:
-        """Gather full state dict and serialize (fallback for non-RDMA sync)."""
+        """Gather full state dict and serialize (fallback, 339 collectives)."""
         state_dict = {}
         for k, v in self.model.state_dict().items():
             if hasattr(v, 'full_tensor'):

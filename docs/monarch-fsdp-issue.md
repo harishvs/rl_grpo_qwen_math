@@ -100,6 +100,12 @@ Serialized weight sync via `torch.save/load` over Monarch actor RPC (~65s per sy
 
 3. **Batched all-gather API**: An `all_gather_flat()` that concatenates all local FSDP shards and gathers in one NCCL call would make the full_tensor approach viable within the 120s timeout.
 
+4. **TorchStore as standalone on K8s**: Can TorchStore be used as a standalone package in Monarch on Kubernetes, without requiring TorchForge/Slurm? This would be the cleanest solution for DTensor state transfer between actor meshes on K8s.
+
+### Debugging notes
+
+We also tried a ParameterServerActor approach (flat CPU buffer in its own process, learner ranks push shards via messages, generator reads via RDMA). The push step works, but the cross-node RDMA `read_into` from generator (Node 1) to param server (Node 0) fails with a delivery timeout. This suggests RDMA buffer negotiation between processes on different nodes may have connectivity issues even when EFA/ibverbs is correctly configured (`ibverbs` backend confirmed, 4 EFA devices per node).
+
 ## Reference implementation
 
 https://github.com/harishvs/rl_grpo_qwen_math (feat/monarch-grpo branch)
