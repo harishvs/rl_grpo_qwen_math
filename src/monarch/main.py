@@ -117,27 +117,6 @@ async def main(config_path: str):
     for r in init_results:
         print(f"  Learner: {r}", flush=True)
 
-    # --- Direct weight sync via gloo process group ---
-    # Learner rank 0 and generator join a separate gloo PG for tensor send/recv.
-    # Bypasses serialization — raw tensor transfer.
-    print("Setting up direct weight sync (NCCL)...", flush=True)
-    # Use learner pod's headless service DNS for cross-node TCPStore
-    sync_host = "grpo-monarch-0.grpo-monarch-svc.default.svc.cluster.local"
-    sync_port = 29501
-
-    # Learner rank 0 creates TCPStore master, generator connects as worker
-    # Must be called concurrently — both sides block until PG is formed
-    import asyncio
-    learner_pg_task = learner.init_weight_sync_pg.call(sync_host, sync_port)
-    gen_pg_task = generator.init_weight_sync_pg.call_one(sync_host, sync_port)
-    learner_pg_result, gen_pg_result = await asyncio.gather(learner_pg_task, gen_pg_task)
-    print(f"  Learner: {learner_pg_result.values()[0]}", flush=True)
-    print(f"  Generator: {gen_pg_result}", flush=True)
-
-    weight_meta = await learner.get_weight_meta.call()
-    weight_meta = weight_meta.values()[0]
-    print(f"  Weight meta: {weight_meta['shard_size'] * weight_meta['world_size'] * 2 / 1e9:.2f} GB total", flush=True)
-
     # --- Training loop ---
     prompts_per_step = config.data.train_batch_size // config.generator.group_size
     dataset_stats = await dataset.get_stats.call_one()
@@ -222,14 +201,11 @@ async def main(config_path: str):
         else:
             train_metrics = {"loss": 0.0, "kl_divergence": 0.0, "clip_fraction": 0.0, "grad_norm": 0.0}
 
-        # 7. Sync weights via NCCL gather + gloo direct send (every N steps)
+        # 7. Sync weights to generator (every N steps)
         if step > 0 and step % config.trainer.weight_sync_interval == 0:
-            import asyncio
-            send_task = learner.send_weights_direct.call()
-            recv_task = generator.recv_weights_direct.call_one(weight_meta, step)
-            send_results, recv_time = await asyncio.gather(send_task, recv_task)
-            send_time = send_results.values()[0]
-            print(f"  Weight sync: send={send_time:.1f}s recv={recv_time:.1f}s", flush=True)
+            weights_list = await learner.get_weights.call()
+            weights_bytes = weights_list.values()[0]
+            await generator.update_weights.call_one(weights_bytes, step)
 
         # 8. Checkpoint
         if step > 0 and step % config.trainer.save_freq == 0:
