@@ -1,0 +1,74 @@
+Prometheus metrics server on :9090
+No cached path provided
+Applying current job
+Job has started, connecting to current state
+Monarch internal logs are being written to /tmp/root/monarch_log.log; execution id root_Apr-08_06:39_827
+Setting up torch elastic env on learner mesh...
+Spawning actors...
+All actors spawned, initializing learner FSDP...
+Generating train split:   0%|          | 0/7473 [00:00<?, ? examples/s]Generating train split: 100%|██████████| 7473/7473 [00:00<00:00, 583709.52 examples/s]
+Generating test split:   0%|          | 0/1319 [00:00<?, ? examples/s]Generating test split: 100%|██████████| 1319/1319 [00:00<00:00, 380985.26 examples/s]
+  Learner: ({'hosts': 0/1, 'gpus': 0/8}, 'rank 0/8 initialized on cuda:0')
+  Learner: ({'hosts': 0/1, 'gpus': 1/8}, 'rank 1/8 initialized on cuda:1')
+  Learner: ({'hosts': 0/1, 'gpus': 2/8}, 'rank 2/8 initialized on cuda:2')
+  Learner: ({'hosts': 0/1, 'gpus': 3/8}, 'rank 3/8 initialized on cuda:3')
+  Learner: ({'hosts': 0/1, 'gpus': 4/8}, 'rank 4/8 initialized on cuda:4')
+  Learner: ({'hosts': 0/1, 'gpus': 5/8}, 'rank 5/8 initialized on cuda:5')
+  Learner: ({'hosts': 0/1, 'gpus': 6/8}, 'rank 6/8 initialized on cuda:6')
+  Learner: ({'hosts': 0/1, 'gpus': 7/8}, 'rank 7/8 initialized on cuda:7')
+Training: 7473 problems, 256 prompts/step, 29 steps/epoch, 29 total steps
+step:0 | policy_loss=7.3108 | kl_divergence=0.0003 | mean_reward=0.1299 | clip_fraction=0.0103 | grad_norm=206.3125 | step_time_seconds=104.0794 | throughput_samples_per_sec=19.6773 | epoch=0
+step:1 | policy_loss=0.0113 | kl_divergence=0.0009 | mean_reward=0.1372 | clip_fraction=0.0132 | grad_norm=36.0000 | step_time_seconds=57.2227 | throughput_samples_per_sec=35.7900 | epoch=0
+step:2 | policy_loss=0.0613 | kl_divergence=0.0008 | mean_reward=0.1265 | clip_fraction=0.0130 | grad_norm=67.2500 | step_time_seconds=60.4697 | throughput_samples_per_sec=33.8682 | epoch=0
+  Learner saved: /checkpoints/latest_weights (16.1s)
+step:3 | policy_loss=0.0377 | kl_divergence=0.0009 | mean_reward=0.1343 | clip_fraction=0.0133 | grad_norm=116.2500 | step_time_seconds=84.1924 | throughput_samples_per_sec=24.3252 | epoch=0
+step:4 | policy_loss=80.4338 | kl_divergence=0.0010 | mean_reward=0.1392 | clip_fraction=0.0134 | grad_norm=132.2500 | step_time_seconds=60.1839 | throughput_samples_per_sec=34.0290 | epoch=0
+step:5 | policy_loss=0.0128 | kl_divergence=0.0015 | mean_reward=0.1558 | clip_fraction=0.0114 | grad_norm=878.0000 | step_time_seconds=59.3044 | throughput_samples_per_sec=34.5337 | epoch=0
+  Learner saved: /checkpoints/latest_weights (16.4s)
+step:6 | policy_loss=0.0029 | kl_divergence=0.0014 | mean_reward=0.1426 | clip_fraction=0.0173 | grad_norm=2217.0000 | step_time_seconds=86.2545 | throughput_samples_per_sec=23.7437 | epoch=0
+step:7 | policy_loss=0.0155 | kl_divergence=0.0015 | mean_reward=0.1572 | clip_fraction=0.0063 | grad_norm=61.0625 | step_time_seconds=57.6838 | throughput_samples_per_sec=35.5039 | epoch=0
+step:8 | policy_loss=0.0138 | kl_divergence=0.0025 | mean_reward=0.1646 | clip_fraction=0.0077 | grad_norm=48.5000 | step_time_seconds=58.4739 | throughput_samples_per_sec=35.0241 | epoch=0
+  Learner saved: /checkpoints/latest_weights (16.5s)
+step:9 | policy_loss=17.7715 | kl_divergence=0.0022 | mean_reward=0.1519 | clip_fraction=0.0083 | grad_norm=295.1250 | step_time_seconds=89.5962 | throughput_samples_per_sec=22.8581 | epoch=0
+step:10 | policy_loss=0.4453 | kl_divergence=0.0025 | mean_reward=0.1782 | clip_fraction=0.0099 | grad_norm=75.1875 | step_time_seconds=57.5522 | throughput_samples_per_sec=35.5851 | epoch=0
+step:11 | policy_loss=1.1858 | kl_divergence=0.0022 | mean_reward=0.1543 | clip_fraction=0.0113 | grad_norm=719.5000 | step_time_seconds=61.5807 | throughput_samples_per_sec=33.2572 | epoch=0
+  Learner saved: /checkpoints/latest_weights (16.5s)
+step:12 | policy_loss=0.0588 | kl_divergence=0.0022 | mean_reward=0.1680 | clip_fraction=0.0101 | grad_norm=350.2500 | step_time_seconds=88.0804 | throughput_samples_per_sec=23.2515 | epoch=0
+step:13 | policy_loss=32.6940 | kl_divergence=0.0028 | mean_reward=0.1729 | clip_fraction=0.0102 | grad_norm=1705.5000 | step_time_seconds=57.3699 | throughput_samples_per_sec=35.6982 | epoch=0
+step:14 | policy_loss=15.9166 | kl_divergence=0.0028 | mean_reward=0.1763 | clip_fraction=0.0147 | grad_norm=703.0000 | step_time_seconds=59.4173 | throughput_samples_per_sec=34.4681 | epoch=0
+  Learner saved: /checkpoints/latest_weights (15.7s)
+step:15 | policy_loss=2.4202 | kl_divergence=0.0028 | mean_reward=0.1699 | clip_fraction=0.0128 | grad_norm=381.5000 | step_time_seconds=88.1976 | throughput_samples_per_sec=23.2206 | epoch=0
+step:16 | policy_loss=2.9497 | kl_divergence=0.0035 | mean_reward=0.1553 | clip_fraction=0.0142 | grad_norm=701.0000 | step_time_seconds=62.8290 | throughput_samples_per_sec=32.5964 | epoch=0
+step:17 | policy_loss=0.0039 | kl_divergence=0.0052 | mean_reward=0.1528 | clip_fraction=0.0127 | grad_norm=175.7500 | step_time_seconds=62.5737 | throughput_samples_per_sec=32.7294 | epoch=0
+  Learner saved: /checkpoints/latest_weights (15.9s)
+step:18 | policy_loss=0.4741 | kl_divergence=0.0048 | mean_reward=0.1650 | clip_fraction=0.0152 | grad_norm=233.0000 | step_time_seconds=84.7861 | throughput_samples_per_sec=24.1549 | epoch=0
+step:19 | policy_loss=0.2729 | kl_divergence=0.0035 | mean_reward=0.1646 | clip_fraction=0.0131 | grad_norm=129.4375 | step_time_seconds=58.4737 | throughput_samples_per_sec=35.0243 | epoch=0
+Checkpoint saved: /checkpoints/step_20
+step:20 | policy_loss=0.0007 | kl_divergence=0.0048 | mean_reward=0.1509 | clip_fraction=0.0134 | grad_norm=222.0000 | step_time_seconds=62.1268 | throughput_samples_per_sec=32.9648 | epoch=0
+  Learner saved: /checkpoints/latest_weights (27.7s)
+step:21 | policy_loss=0.2358 | kl_divergence=0.0061 | mean_reward=0.1699 | clip_fraction=0.0179 | grad_norm=164.5000 | step_time_seconds=100.0488 | throughput_samples_per_sec=20.4700 | epoch=0
+step:22 | policy_loss=0.6712 | kl_divergence=0.0047 | mean_reward=0.1567 | clip_fraction=0.0074 | grad_norm=72.8750 | step_time_seconds=60.8348 | throughput_samples_per_sec=33.6650 | epoch=0
+step:23 | policy_loss=1.9243 | kl_divergence=0.0057 | mean_reward=0.1543 | clip_fraction=0.0167 | grad_norm=136.0000 | step_time_seconds=63.6084 | throughput_samples_per_sec=32.1970 | epoch=0
+  Learner saved: /checkpoints/latest_weights (15.8s)
+step:24 | policy_loss=5.6041 | kl_divergence=0.0060 | mean_reward=0.1445 | clip_fraction=0.0171 | grad_norm=342.0000 | step_time_seconds=91.7966 | throughput_samples_per_sec=22.3102 | epoch=0
+step:25 | policy_loss=0.0079 | kl_divergence=0.0072 | mean_reward=0.1328 | clip_fraction=0.0106 | grad_norm=141.2500 | step_time_seconds=62.2493 | throughput_samples_per_sec=32.9000 | epoch=0
+step:26 | policy_loss=3.1346 | kl_divergence=0.0091 | mean_reward=0.1509 | clip_fraction=0.0148 | grad_norm=159.7500 | step_time_seconds=61.6422 | throughput_samples_per_sec=33.2240 | epoch=0
+  Learner saved: /checkpoints/latest_weights (15.7s)
+step:27 | policy_loss=10.9545 | kl_divergence=0.0076 | mean_reward=0.1406 | clip_fraction=0.0184 | grad_norm=463.5000 | step_time_seconds=92.0539 | throughput_samples_per_sec=22.2478 | epoch=0
+step:28 | policy_loss=16.2374 | kl_divergence=0.0072 | mean_reward=0.1299 | clip_fraction=0.0237 | grad_norm=778.0000 | step_time_seconds=66.0895 | throughput_samples_per_sec=30.9883 | epoch=0
+Traceback (most recent call last):
+  File "/scripts/run_training.py", line 7, in <module>
+    asyncio.run(main(config_path))
+  File "/usr/lib/python3.12/asyncio/runners.py", line 194, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/base_events.py", line 687, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/app/src/monarch/main.py", line 232, in main
+    await learner.save_checkpoint.call_one(final_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: call_one requires exactly 1 actor, but mesh has 8

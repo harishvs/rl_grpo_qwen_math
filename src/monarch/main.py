@@ -201,11 +201,13 @@ async def main(config_path: str):
         else:
             train_metrics = {"loss": 0.0, "kl_divergence": 0.0, "clip_fraction": 0.0, "grad_norm": 0.0}
 
-        # 7. Sync weights via NCCL gather → FSx → generator reload (every N steps)
+        # 7. Sync weights via FSx shared filesystem (every N steps)
+        # Learner saves to FSx (all ranks call full_tensor, rank 0 writes)
+        # Generator reloads from same path — no 3GB RPC transfer
         if step > 0 and step % config.trainer.weight_sync_interval == 0:
             shared_path = "/checkpoints/latest_weights"
             save_result = await learner.save_weights_to_shared.call(shared_path)
-            print(f"  Learner saved: {save_result.values()[0]}", flush=True)
+            print(f"  Weight save: {save_result.values()[0]}", flush=True)
             await generator.update_weights_from_path.call_one(shared_path, step)
 
         # 8. Checkpoint
