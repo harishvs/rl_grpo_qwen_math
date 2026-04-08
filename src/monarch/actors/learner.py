@@ -543,14 +543,36 @@ class LearnerActor(Actor):
 
     @endpoint
     async def save_weights_to_shared(self, path: str) -> str:
-        """Save weights to shared filesystem (FSx Lustre) in HF format.
+        """Gather via NCCL all_gather + save to shared filesystem (FSx).
 
-        All ranks participate in state_dict() (FSDP collective).
-        Rank 0 writes safetensors + config to the shared path.
-        Generator on the other node reads from the same path.
+        Uses single NCCL collective (not 339 full_tensor calls).
+        Rank 0 reconstructs state_dict and writes safetensors to FSx.
         """
-        rank = dist.get_rank() if dist.is_initialized() else 0
+        import time
+        t0 = time.time()
+
+        rank = dist.get_rank()
+        world_size = dist.get_world_size()
+
+        # Use state_dict keys (HF namespace) for correct reconstruction
         sd = self.model.state_dict()
+        sd_keys = sorted(sd.keys())
+
+        local_parts = []
+        meta = []
+        for k in sd_keys:
+            v = sd[k]
+            lt = v._local_tensor if hasattr(v, '_local_tensor') else v.detach()
+            local_parts.append(lt.contiguous().view(-1))
+            meta.append((k, list(v.shape), lt.numel()))
+        local_flat = torch.cat(local_parts)
+
+        # One NCCL all_gather
+        if world_size > 1:
+            gathered = torch.empty(local_flat.numel() * world_size, dtype=local_flat.dtype, device=local_flat.device)
+            dist.all_gather_into_tensor(gathered, local_flat)
+        else:
+            gathered = local_flat
 
         if rank == 0:
             import os
@@ -559,18 +581,31 @@ class LearnerActor(Actor):
 
             os.makedirs(path, exist_ok=True)
 
-            # Gather full tensors and clean DTensors
-            clean = {}
-            for k, v in sd.items():
-                if hasattr(v, 'full_tensor'):
-                    clean[k] = v.full_tensor().cpu()
-                else:
-                    clean[k] = v.detach().cpu()
+            # Reconstruct state_dict from gathered shards
+            shard_size = local_flat.numel()
+            param_offsets = []
+            offset = 0
+            for _, _, sn in meta:
+                param_offsets.append(offset)
+                offset += sn
 
-            save_file(clean, os.path.join(path, "model.safetensors"))
+            state_dict = {}
+            for i, (name, full_shape, shard_numel) in enumerate(meta):
+                param_shards = []
+                for r in range(world_size):
+                    start = r * shard_size + param_offsets[i]
+                    param_shards.append(gathered[start:start + shard_numel])
+                full_param = torch.cat(param_shards)
+                full_numel = 1
+                for s in full_shape:
+                    full_numel *= s
+                state_dict[name] = full_param[:full_numel].reshape(full_shape).cpu()
+
+            save_file(state_dict, os.path.join(path, "model.safetensors"))
             AutoConfig.from_pretrained(self.model_name).save_pretrained(path)
 
-        return path
+        t1 = time.time()
+        return f"{path} ({t1-t0:.1f}s)"
 
     @endpoint
     async def get_weights(self) -> bytes:
