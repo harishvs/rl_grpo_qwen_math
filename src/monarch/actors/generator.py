@@ -249,23 +249,44 @@ class GeneratorActor(Actor):
 
     @endpoint
     async def update_weights(self, state_dict_bytes: bytes, version: int) -> None:
-        """Update model weights from serialized state dict (fallback, non-RDMA)."""
-        buffer = io.BytesIO(state_dict_bytes)
-        state_dict = torch.load(buffer, map_location="cpu", weights_only=True)
+        """Update model weights from serialized state dict.
 
-        clean_state_dict = {}
+        Saves to HF-format tmp dir, then uses vLLM's reload_weights
+        which works with TP>1 (no closure pickling needed).
+        """
+        import os, tempfile, shutil
+        from transformers import AutoConfig
+
+        buf = io.BytesIO(state_dict_bytes)
+        state_dict = torch.load(buf, map_location="cpu", weights_only=True)
+
+        # Clean DTensors if any
+        clean = {}
         for k, v in state_dict.items():
             if hasattr(v, 'full_tensor'):
-                clean_state_dict[k] = v.full_tensor().cpu()
+                clean[k] = v.full_tensor().cpu()
             elif hasattr(v, '_local_tensor'):
-                clean_state_dict[k] = v._local_tensor.cpu()
+                clean[k] = v._local_tensor.cpu()
             else:
-                clean_state_dict[k] = v.cpu() if hasattr(v, 'cpu') else v
+                clean[k] = v.cpu() if hasattr(v, 'cpu') else v
 
-        def _load(model):
-            model.load_state_dict(clean_state_dict, strict=False)
+        # Save as safetensors in a tmp dir (HF checkpoint format)
+        tmp_dir = "/tmp/weight_update"
+        os.makedirs(tmp_dir, exist_ok=True)
 
-        self.engine.apply_model(_load)
+        # Save config so vLLM can find it
+        config = AutoConfig.from_pretrained(self.model_name)
+        config.save_pretrained(tmp_dir)
+
+        # Save weights
+        from safetensors.torch import save_file
+        save_file(clean, os.path.join(tmp_dir, "model.safetensors"))
+
+        # vLLM reload_weights: works with TP>1, reloads from disk
+        self.engine.collective_rpc("reload_weights", kwargs={
+            "weights_path": tmp_dir,
+        })
+
         self.policy_version = version
 
     @endpoint
