@@ -201,11 +201,12 @@ async def main(config_path: str):
         else:
             train_metrics = {"loss": 0.0, "kl_divergence": 0.0, "clip_fraction": 0.0, "grad_norm": 0.0}
 
-        # 7. Sync weights to generator (every N steps)
+        # 7. Sync weights via shared filesystem (every N steps)
+        # Learner writes to FSx Lustre, generator reads — no RPC transfer
         if step > 0 and step % config.trainer.weight_sync_interval == 0:
-            weights_list = await learner.get_weights.call()
-            weights_bytes = weights_list.values()[0]
-            await generator.update_weights.call_one(weights_bytes, step)
+            shared_path = "/checkpoints/latest_weights"
+            await learner.save_weights_to_shared.call(shared_path)
+            await generator.update_weights_from_path.call_one(shared_path, step)
 
         # 8. Checkpoint
         if step > 0 and step % config.trainer.save_freq == 0:

@@ -74,8 +74,8 @@ spec:
     - name: data
       emptyDir: {}
     - name: checkpoints
-      emptyDir:
-        sizeLimit: 100Gi
+      persistentVolumeClaim:
+        claimName: fsx-training-checkpoints
     tolerations:
     - key: nvidia.com/gpu
       operator: Exists

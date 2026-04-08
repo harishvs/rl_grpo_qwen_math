@@ -248,19 +248,28 @@ class GeneratorActor(Actor):
         self.policy_version = version
 
     @endpoint
-    async def update_weights(self, state_dict_bytes: bytes, version: int) -> None:
-        """Update model weights from serialized state dict.
+    async def update_weights_from_path(self, weights_path: str, version: int) -> None:
+        """Reload weights from shared filesystem (FSx Lustre).
 
-        Saves to HF-format tmp dir, then uses vLLM's reload_weights
-        which works with TP>1 (no closure pickling needed).
+        Learner writes to /checkpoints/latest_weights/, generator reads.
+        No RPC transfer — both nodes see the same filesystem.
+        Works with TP>1 via vLLM's reload_weights.
         """
-        import os, tempfile, shutil
+        self.engine.collective_rpc("reload_weights", kwargs={
+            "weights_path": weights_path,
+        })
+        self.policy_version = version
+
+    @endpoint
+    async def update_weights(self, state_dict_bytes: bytes, version: int) -> None:
+        """Update model weights from serialized state dict (fallback for no shared FS)."""
+        import os
         from transformers import AutoConfig
+        from safetensors.torch import save_file
 
         buf = io.BytesIO(state_dict_bytes)
         state_dict = torch.load(buf, map_location="cpu", weights_only=True)
 
-        # Clean DTensors if any
         clean = {}
         for k, v in state_dict.items():
             if hasattr(v, 'full_tensor'):
@@ -270,23 +279,14 @@ class GeneratorActor(Actor):
             else:
                 clean[k] = v.cpu() if hasattr(v, 'cpu') else v
 
-        # Save as safetensors in a tmp dir (HF checkpoint format)
         tmp_dir = "/tmp/weight_update"
         os.makedirs(tmp_dir, exist_ok=True)
-
-        # Save config so vLLM can find it
-        config = AutoConfig.from_pretrained(self.model_name)
-        config.save_pretrained(tmp_dir)
-
-        # Save weights
-        from safetensors.torch import save_file
+        AutoConfig.from_pretrained(self.model_name).save_pretrained(tmp_dir)
         save_file(clean, os.path.join(tmp_dir, "model.safetensors"))
 
-        # vLLM reload_weights: works with TP>1, reloads from disk
         self.engine.collective_rpc("reload_weights", kwargs={
             "weights_path": tmp_dir,
         })
-
         self.policy_version = version
 
     @endpoint

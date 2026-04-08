@@ -542,6 +542,37 @@ class LearnerActor(Actor):
         return b""
 
     @endpoint
+    async def save_weights_to_shared(self, path: str) -> str:
+        """Save weights to shared filesystem (FSx Lustre) in HF format.
+
+        All ranks participate in state_dict() (FSDP collective).
+        Rank 0 writes safetensors + config to the shared path.
+        Generator on the other node reads from the same path.
+        """
+        rank = dist.get_rank() if dist.is_initialized() else 0
+        sd = self.model.state_dict()
+
+        if rank == 0:
+            import os
+            from transformers import AutoConfig
+            from safetensors.torch import save_file
+
+            os.makedirs(path, exist_ok=True)
+
+            # Gather full tensors and clean DTensors
+            clean = {}
+            for k, v in sd.items():
+                if hasattr(v, 'full_tensor'):
+                    clean[k] = v.full_tensor().cpu()
+                else:
+                    clean[k] = v.detach().cpu()
+
+            save_file(clean, os.path.join(path, "model.safetensors"))
+            AutoConfig.from_pretrained(self.model_name).save_pretrained(path)
+
+        return path
+
+    @endpoint
     async def get_weights(self) -> bytes:
         """Gather full state dict and serialize (fallback, 339 collectives)."""
         state_dict = {}
