@@ -105,6 +105,45 @@ def main():
     plt.close(fig)
     print(f"  Saved {os.path.join(output_dir, 'overview.png')}")
 
+    # Step time breakdown (stacked bar chart)
+    timing_keys = ["t_generation", "t_scoring", "t_training", "t_weight_sync"]
+    if all(k in metrics for k in timing_keys):
+        fig, ax = plt.subplots(figsize=(14, 6))
+        bottom = [0] * len(steps)
+        colors = {"t_generation": "#4CAF50", "t_scoring": "#FF9800",
+                  "t_training": "#2196F3", "t_weight_sync": "#F44336"}
+        labels = {"t_generation": "Generation", "t_scoring": "Scoring",
+                  "t_training": "Training (FSDP)", "t_weight_sync": "Weight Sync (RPC)"}
+
+        for key in timing_keys:
+            vals = metrics[key]
+            ax.bar(steps, vals, bottom=bottom, color=colors[key],
+                   label=labels[key], width=0.8)
+            bottom = [b + v for b, v in zip(bottom, vals)]
+
+        ax.set_xlabel("Step")
+        ax.set_ylabel("Time (seconds)")
+        ax.set_title("Step Time Breakdown — Where Time Is Spent")
+        ax.legend(loc="upper right")
+        ax.grid(True, alpha=0.2, axis="y")
+        fig.tight_layout()
+        fig.savefig(os.path.join(output_dir, "step_time_breakdown.png"), dpi=150)
+        plt.close(fig)
+        print(f"  Saved {os.path.join(output_dir, 'step_time_breakdown.png')}")
+
+        # Summary stats
+        total_gen = sum(metrics["t_generation"])
+        total_score = sum(metrics["t_scoring"])
+        total_train = sum(metrics["t_training"])
+        total_sync = sum(metrics["t_weight_sync"])
+        total_all = total_gen + total_score + total_train + total_sync
+        print(f"\n  Time breakdown:")
+        print(f"    Generation:  {total_gen:.0f}s ({100*total_gen/total_all:.0f}%)")
+        print(f"    Scoring:     {total_score:.0f}s ({100*total_score/total_all:.0f}%)")
+        print(f"    Training:    {total_train:.0f}s ({100*total_train/total_all:.0f}%)")
+        print(f"    Weight sync: {total_sync:.0f}s ({100*total_sync/total_all:.0f}%)")
+        print(f"    Total:       {total_all:.0f}s")
+
 
 if __name__ == "__main__":
     main()

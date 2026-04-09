@@ -1,19 +1,19 @@
 # Monarch GRPO training config for Qwen2.5-7B on GSM8K
-# 7B model needs smaller batches, lower lr, and TP=2 for vLLM on 16x A100 40GB
+# Based on proven 1.5B config that reached 0.87 reward
 model: Qwen/Qwen2.5-7B
 experiment_name: monarch-qwen7b
 
 data:
-  train_batch_size: 128
+  train_batch_size: 256
   max_prompt_length: 512
   max_response_length: 1024
   dataset_name: openai/gsm8k
 
 learner:
-  mini_batch_size: 64
-  micro_batch_size_per_gpu: 4
-  lr: 1e-6
-  kl_coef: 0.1
+  mini_batch_size: 128
+  micro_batch_size_per_gpu: 2
+  lr: 5e-6
+  kl_coef: 0.001
   clip_range: 0.2
   max_grad_norm: 1.0
   gradient_checkpointing: true
@@ -22,7 +22,7 @@ learner:
 
 generator:
   gpu_memory_utilization: 0.5
-  tensor_parallel_size: 2
+  tensor_parallel_size: 4
   group_size: 8
   temperature: 1.0
   top_p: 1.0
@@ -35,7 +35,7 @@ trainer:
   n_gpus_per_node: 8
   nnodes: 2
   total_epochs: 1
-  save_freq: 10
+  save_freq: 20
   test_freq: 10
-  weight_sync_interval: 3
+  weight_sync_interval: 1
   checkpoint_dir: /checkpoints

@@ -132,14 +132,13 @@ async def main(config_path: str):
 
     for step in range(max_steps):
         step_start = time.time()
+        t_phase = time.time()
 
         # 1. Get batch of prompts
         batch = await dataset.next_batch.call_one(prompts_per_step)
         prompts = batch["prompts"]
         ground_truths = batch["ground_truths"]
 
-        # Format prompts as strings for the generator
-        # (chat format -> single string via tokenizer apply_chat_template)
         prompt_strings = [
             p[0]["content"] if isinstance(p, list) and len(p) > 0 else str(p)
             for p in prompts
@@ -152,6 +151,8 @@ async def main(config_path: str):
             temperature=config.generator.temperature,
             top_p=config.generator.top_p,
         )
+        t_gen = time.time() - t_phase
+        t_phase = time.time()
 
         # 3. Score rewards via HTTP reward service
         gt_expanded = []
@@ -187,6 +188,8 @@ async def main(config_path: str):
             "advantages": advantages.tolist(),
         }
         await replay_buffer.add.call_one(episodes, step)
+        t_score = time.time() - t_phase
+        t_phase = time.time()
 
         # 6. Train
         train_batch = await replay_buffer.sample.call_one(
@@ -195,17 +198,20 @@ async def main(config_path: str):
         )
 
         if train_batch is not None:
-            # call() broadcasts to all 8 FSDP ranks -- they must all participate
             train_results = await learner.train_step.call(train_batch)
-            train_metrics = train_results.values()[0]  # metrics from rank 0
+            train_metrics = train_results.values()[0]
         else:
             train_metrics = {"loss": 0.0, "kl_divergence": 0.0, "clip_fraction": 0.0, "grad_norm": 0.0}
+        t_train = time.time() - t_phase
+        t_phase = time.time()
 
         # 7. Sync weights to generator (every N steps)
+        t_sync = 0.0
         if step > 0 and step % config.trainer.weight_sync_interval == 0:
             weights_list = await learner.get_weights.call()
             weights_bytes = weights_list.values()[0]
             await generator.update_weights.call_one(weights_bytes, step)
+            t_sync = time.time() - t_phase
 
         # 8. Checkpoint
         if step > 0 and step % config.trainer.save_freq == 0:
@@ -213,7 +219,7 @@ async def main(config_path: str):
             await learner.save_checkpoint.call(save_path)  # all ranks participate in summon_full_params
             print(f"Checkpoint saved: {save_path}", flush=True)
 
-        # 9. Log metrics
+        # 9. Log metrics with timing breakdown
         step_time = time.time() - step_start
         metrics_logger.log(step, {
             "policy_loss": train_metrics.get("loss", 0.0),
@@ -222,6 +228,10 @@ async def main(config_path: str):
             "clip_fraction": train_metrics.get("clip_fraction", 0.0),
             "grad_norm": train_metrics.get("grad_norm", 0.0),
             "step_time_seconds": step_time,
+            "t_generation": t_gen,
+            "t_scoring": t_score,
+            "t_training": t_train,
+            "t_weight_sync": t_sync,
             "throughput_samples_per_sec": len(rewards) / step_time if step_time > 0 else 0,
             "epoch": batch["epoch"],
         })
