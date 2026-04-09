@@ -70,5 +70,9 @@
 - Never commit secrets, API keys, or credentials. Use IRSA, environment variables, or K8s Secrets.
 - Always use `*.tfvars` in .gitignore. Provide a `.tfvars.example` with dummy values instead.
 
+## Permissions
+- When asking for permission, always explain WHY you need the user's input — what is the decision, what are the tradeoffs, and why can't you decide on your own.
+- Never ask bare "want me to..." or "should I..." without context. The user needs to understand the decision they're making.
+
 ## Commit 
 - dont add Co-Authored-By: 

@@ -112,10 +112,13 @@ async def main(config_path: str):
         gradient_checkpointing=config.learner.gradient_checkpointing,
     )
 
-    print("All actors spawned, initializing learner FSDP...", flush=True)
+    print("All actors spawned, initializing...", flush=True)
     init_results = await learner.initialize.call()
     for r in init_results:
         print(f"  Learner: {r}", flush=True)
+
+    gen_result = await generator.initialize.call_one()
+    print(f"  Generator: {gen_result}", flush=True)
 
     # --- Training loop ---
     prompts_per_step = config.data.train_batch_size // config.generator.group_size

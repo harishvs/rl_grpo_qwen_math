@@ -26,28 +26,35 @@ class GeneratorActor(Actor):
         max_tokens: int = 1024,
         trust_remote_code: bool = True,
     ):
+        # Lightweight init — save config. Heavy vLLM init in initialize().
+        self.model_name = model_name
+        self.tensor_parallel_size = tensor_parallel_size
+        self.gpu_memory_utilization = gpu_memory_utilization
+        self.max_tokens = max_tokens
+        self.trust_remote_code = trust_remote_code
+        self.policy_version = 0
+        self.engine = None
+
+    @endpoint
+    async def initialize(self) -> str:
+        """Initialize vLLM engine. Called after spawn to avoid resource contention."""
         import os
         os.environ["VLLM_ALLOW_INSECURE_SERIALIZATION"] = "1"
-        # Make all GPUs visible for tensor parallelism — Monarch restricts
-        # both CUDA_VISIBLE_DEVICES and NVIDIA_VISIBLE_DEVICES
-        if tensor_parallel_size > 1:
+        if self.tensor_parallel_size > 1:
             os.environ.pop("CUDA_VISIBLE_DEVICES", None)
             os.environ.pop("NVIDIA_VISIBLE_DEVICES", None)
         from vllm import LLM, SamplingParams
 
-        self.model_name = model_name
-        self.max_tokens = max_tokens
-        self.policy_version = 0
-
         self.engine = LLM(
-            model=model_name,
-            tensor_parallel_size=tensor_parallel_size,
-            gpu_memory_utilization=gpu_memory_utilization,
-            trust_remote_code=trust_remote_code,
+            model=self.model_name,
+            tensor_parallel_size=self.tensor_parallel_size,
+            gpu_memory_utilization=self.gpu_memory_utilization,
+            trust_remote_code=self.trust_remote_code,
             dtype="bfloat16",
         )
         self.tokenizer = self.engine.get_tokenizer()
         self.SamplingParams = SamplingParams
+        return f"vLLM initialized: {self.model_name} TP={self.tensor_parallel_size}"
 
     @endpoint
     async def generate(
