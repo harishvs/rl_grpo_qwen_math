@@ -4,7 +4,7 @@ model: Qwen/Qwen2.5-1.5B
 experiment_name: monarch-qwen1.5b
 
 data:
-  train_batch_size: 2048
+  train_batch_size: 256
   max_prompt_length: 512
   max_response_length: 1024
   dataset_name: openai/gsm8k
@@ -13,7 +13,7 @@ learner:
   mini_batch_size: 128
   micro_batch_size_per_gpu: 16
   lr: 5e-6
-  kl_coef: 0.1
+  kl_coef: 0.001
   clip_range: 0.2
   max_grad_norm: 1.0
   gradient_checkpointing: true
@@ -37,5 +37,5 @@ trainer:
   total_epochs: 1
   save_freq: 20
   test_freq: 10
-  weight_sync_interval: 3
+  weight_sync_interval: 1
   checkpoint_dir: /checkpoints
