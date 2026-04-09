@@ -153,7 +153,7 @@ Working FSDP + Monarch actor implementation with:
 - `setup_torch_elastic_env` + `dist.init_process_group` for NCCL setup
 - Composable `fully_shard()` with CPU-offloaded frozen reference model
 - Micro-batching with `set_requires_gradient_sync` for gradient accumulation
-- TP=4 vLLM generation (2048 completions not feasible, 256 with TP=4)
+- TP=4 vLLM generation, tested with both 256 and 2048 completions/step
 - Reward: 14.5% → 53%+ in 14 steps (with correct hyperparameters)
 - 20+ issues documented across 11 training runs
 - Weight sync is the primary bottleneck: 47s/sync × 233 steps = ~3 hours overhead per epoch
