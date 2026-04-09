@@ -88,19 +88,49 @@ We tried a shard-based approach: each learner rank exposes its local FSDP shard 
 
 This works in the single-GPU GRPO example because the learner actor and its RDMA manager share the same process. With multi-process FSDP, each rank runs in a separate process spawned by the worker loop.
 
+### Problem 3: EFA doesn't support ibverbs RC queue pairs (root cause of RDMA failure)
+
+Even with a ParameterServerActor in the worker process (correct RDMA manager visibility), `read_into()` fails. Testing revealed:
+
+```
+$ ibv_rc_pingpong -d rdmap16s27
+Couldn't create QP
+
+$ ibv_ud_pingpong -d rdmap16s27 localhost
+Failed to create AH, GID ::
+```
+
+AWS EFA exposes `/dev/infiniband/uverbs*` for compatibility but doesn't support RC or standard UD queue pairs. EFA only works through **libfabric** (`FI_PROTO_EFA`). Monarch's `RDMABuffer` uses ibverbs directly → always fails on EFA.
+
+### Problem 4: vLLM reload_weights corrupts model state
+
+We tried saving weights to FSx Lustre (shared filesystem) and using vLLM's `reload_weights(weights_path=)`. The weights load correctly, but `reload_weights` internally sets `self.model_config.model = weights_path`, which corrupts vLLM's state for subsequent generation. Reward declined from 0.14 → 0.09.
+
+### Problem 5: apply_model incompatible with TP>1
+
+vLLM's `apply_model(fn)` sends the function to worker processes via `collective_rpc`. With TP>1, the closure can't be pickled across workers. `VLLM_ALLOW_INSECURE_SERIALIZATION=1` doesn't help.
+
+### Problem 6: FSDP named_parameters() ≠ state_dict() keys
+
+When reconstructing state_dict from NCCL-gathered flat buffer, using `named_parameters()` keys produces FSDP-namespace keys. vLLM expects HF-namespace keys (from `state_dict()`). With `strict=False`, all keys silently fail to match — zero weights loaded.
+
 ### Current workaround
 
-Serialized weight sync via `torch.save/load` over Monarch actor RPC (~65s per sync for 3GB model). Works but slow.
+Serialized weight sync via `torch.save/load` over Monarch actor RPC (~47s per sync for 3GB model with TP=4 vLLM). This is the **only** approach that consistently produces correct weights across 10+ training runs and hundreds of weight syncs. Every optimization attempt (RDMA, gloo, FSx, NCCL gather reconstruction) introduced subtle correctness issues.
+
+### Why generation speed dominates over sync speed
+
+With TP=4 generating 2048 completions, each step takes ~58s for generation. Weight sync adds 47s every 3rd step. Dropping to TP=1 to enable faster sync (via `apply_model`) would make generation ~230s — 3.5x slower overall despite eliminating sync overhead.
 
 ### Suggestions
 
-1. **Cross-process RDMA buffer visibility**: Allow RDMA buffers registered in child actor processes to be accessible by the parent worker loop's RDMA manager, or provide an API to register buffers at the worker loop level from within actor endpoints.
+1. **Monarch RDMA over libfabric**: Instead of ibverbs, use libfabric like NCCL does via aws-ofi-nccl. This would make RDMABuffer work on AWS EFA.
 
-2. **TorchStore on K8s**: Learner publishes DTensor state to TorchStore, generator subscribes. TorchStore not currently available in torchmonarch 0.4.0 on Kubernetes.
+2. **TorchStore on K8s**: Can TorchStore be used as a standalone package in Monarch on Kubernetes, without requiring TorchForge/Slurm? This would be the cleanest solution for DTensor state transfer between actor meshes.
 
-3. **Batched all-gather API**: An `all_gather_flat()` that concatenates all local FSDP shards and gathers in one NCCL call would make the full_tensor approach viable within the 120s timeout.
+3. **Cross-process RDMA buffer visibility**: Allow RDMA buffers registered in child actor processes to be accessible by the parent worker loop's RDMA manager.
 
-4. **TorchStore as standalone on K8s**: Can TorchStore be used as a standalone package in Monarch on Kubernetes, without requiring TorchForge/Slurm? This would be the cleanest solution for DTensor state transfer between actor meshes on K8s.
+4. **vLLM weight loading for TP>1**: A `load_state_dict_distributed(state_dict)` API that works across TP workers without pickling closures or mutating model_config would solve the TP>1 weight sync problem.
 
 ### Debugging notes
 
