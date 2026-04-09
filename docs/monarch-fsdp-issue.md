@@ -46,11 +46,23 @@ class LearnerActor(Actor):
         local_rank = int(os.environ.get("LOCAL_RANK", 0))
         torch.cuda.set_device(local_rank)
 
+        # Actor model (trainable, FSDP on GPU)
         model = AutoModelForCausalLM.from_pretrained(self.model_name, ...)
         for layer in model.model.layers:
             fully_shard(layer, reshard_after_forward=True)
         fully_shard(model, reshard_after_forward=False)
         self.model = model
+
+        # Reference model (frozen, FSDP with CPU param offload)
+        ref_model = AutoModelForCausalLM.from_pretrained(self.model_name, ...)
+        ref_model.eval()
+        for p in ref_model.parameters():
+            p.requires_grad = False
+        offload = CPUOffloadPolicy()
+        for layer in ref_model.model.layers:
+            fully_shard(layer, reshard_after_forward=True, offload_policy=offload)
+        fully_shard(ref_model, reshard_after_forward=True, offload_policy=offload)
+        self.ref_model = ref_model
 ```
 
 ### 3. Use `.call()` (broadcast) for training steps so all FSDP ranks participate
@@ -76,9 +88,9 @@ An official example showing:
 
 The official GRPO example uses RDMA for weight sync (single-GPU learner → generator). With FSDP across multiple processes, this doesn't work for two reasons:
 
-### Problem 1: full_tensor() timeout
+### Problem 1: full_tensor() collectives are slow (but don't always timeout)
 
-Each `DTensor.full_tensor()` is a separate all-gather collective. A 1.5B model has 339 parameters → 339 sequential collectives → exceeds Monarch's 120s supervision watchdog timeout. No PyTorch API exists to gather an entire FSDP2 state_dict in one collective.
+Each `DTensor.full_tensor()` is a separate all-gather collective. A 1.5B model has 339 parameters → 339 sequential collectives (~30s total). This does NOT timeout when used in a simple endpoint like `get_weights()` (returns bytes). However, when combined with RDMA buffer creation (`expose_weights`), the total time exceeded Monarch's 120s supervision watchdog. The timeout was from RDMA registration overhead, not `full_tensor()` alone.
 
 ### Problem 2: Cross-process RDMA buffer isolation
 
