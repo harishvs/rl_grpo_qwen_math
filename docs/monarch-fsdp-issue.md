@@ -118,9 +118,18 @@ When reconstructing state_dict from NCCL-gathered flat buffer, using `named_para
 
 Serialized weight sync via `torch.save/load` over Monarch actor RPC (~47s per sync for 3GB model with TP=4 vLLM). This is the **only** approach that consistently produces correct weights across 10+ training runs and hundreds of weight syncs. Every optimization attempt (RDMA, gloo, FSx, NCCL gather reconstruction) introduced subtle correctness issues.
 
-### Why generation speed dominates over sync speed
+### Why fast weight sync matters — training results prove it
 
-With TP=4 generating 2048 completions, each step takes ~58s for generation. Weight sync adds 47s every 3rd step. Dropping to TP=1 to enable faster sync (via `apply_model`) would make generation ~230s — 3.5x slower overall despite eliminating sync overhead.
+With the correct hyperparameters (`kl_coef=0.001`, matching veRL), we found that **weight sync every step is critical**:
+
+| Sync interval | Best reward (1 epoch) | Notes |
+|---|---|---|
+| Every 3 steps | 0.24 | Stale old_log_probs corrupt PPO ratio 2/3 of steps |
+| Every 1 step | **0.53+ (still climbing)** | Fresh weights = correct PPO ratio every step |
+
+The 47s per-sync overhead (serialized RPC) adds ~3 hours to a 233-step epoch. This is the single biggest performance bottleneck in our Monarch GRPO implementation. Faster weight sync (via RDMA, shared memory, or colocated placement) would directly translate to faster training without sacrificing accuracy.
+
+With split placement on Monarch, weight sync is unavoidable. veRL avoids this entirely via colocated placement (zero-cost weight resharding). **This is the strongest argument for Monarch to support colocated/role-switching placement, or to provide a fast weight transfer primitive (e.g., TorchStore, or RDMA over libfabric).**
 
 ### Suggestions
 
@@ -144,7 +153,10 @@ Working FSDP + Monarch actor implementation with:
 - `setup_torch_elastic_env` + `dist.init_process_group` for NCCL setup
 - Composable `fully_shard()` with CPU-offloaded frozen reference model
 - Micro-batching with `set_requires_gradient_sync` for gradient accumulation
-- 18 issues documented across 4 training runs
+- TP=4 vLLM generation (2048 completions not feasible, 256 with TP=4)
+- Reward: 14.5% → 53%+ in 14 steps (with correct hyperparameters)
+- 20+ issues documented across 11 training runs
+- Weight sync is the primary bottleneck: 47s/sync × 233 steps = ~3 hours overhead per epoch
 
 ## Environment
 
