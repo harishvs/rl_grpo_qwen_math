@@ -28,10 +28,11 @@ class GeneratorActor(Actor):
     ):
         import os
         os.environ["VLLM_ALLOW_INSECURE_SERIALIZATION"] = "1"
-        # Make all GPUs visible for tensor parallelism — Monarch may have
-        # restricted CUDA_VISIBLE_DEVICES to 1 GPU for this process
+        # Make all GPUs visible for tensor parallelism — Monarch restricts
+        # both CUDA_VISIBLE_DEVICES and NVIDIA_VISIBLE_DEVICES
         if tensor_parallel_size > 1:
             os.environ.pop("CUDA_VISIBLE_DEVICES", None)
+            os.environ.pop("NVIDIA_VISIBLE_DEVICES", None)
         from vllm import LLM, SamplingParams
 
         self.model_name = model_name
