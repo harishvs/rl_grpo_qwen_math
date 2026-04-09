@@ -1,0 +1,14 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: monarch-training
+  namespace: monitoring
+spec:
+  namespaceSelector:
+    matchNames: [default]
+  selector:
+    matchLabels:
+      monarch.pytorch.org/mesh-name: grpo-monarch
+  podMetricsEndpoints:
+  - port: metrics
+    interval: 15s

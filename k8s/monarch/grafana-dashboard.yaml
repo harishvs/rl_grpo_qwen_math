@@ -1,0 +1,81 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-monarch
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  monarch-training.json: |
+    {
+      "annotations": {"list": []},
+      "title": "Monarch GRPO Training",
+      "uid": "monarch-grpo",
+      "panels": [
+        {
+          "title": "Mean Reward",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+          "targets": [{"expr": "monarch_mean_reward", "legendFormat": "reward"}],
+          "fieldConfig": {"defaults": {"min": 0, "max": 1, "color": {"mode": "fixed", "fixedColor": "green"}}}
+        },
+        {
+          "title": "Policy Loss",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "targets": [{"expr": "monarch_policy_loss", "legendFormat": "loss"}],
+          "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "red"}}}
+        },
+        {
+          "title": "KL Divergence",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+          "targets": [{"expr": "monarch_kl_divergence", "legendFormat": "kl"}],
+          "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "orange"}}}
+        },
+        {
+          "title": "Gradient Norm",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "targets": [{"expr": "monarch_grad_norm", "legendFormat": "grad_norm"}],
+          "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "purple"}}}
+        },
+        {
+          "title": "Clip Fraction",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+          "targets": [{"expr": "monarch_clip_fraction", "legendFormat": "clip_frac"}],
+          "fieldConfig": {"defaults": {"min": 0, "max": 1}}
+        },
+        {
+          "title": "Throughput (samples/sec)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+          "targets": [{"expr": "monarch_throughput_samples_per_sec", "legendFormat": "throughput"}],
+          "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "blue"}}}
+        },
+        {
+          "title": "Step Time (seconds)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+          "targets": [{"expr": "monarch_step_time_seconds", "legendFormat": "step_time"}],
+          "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "grey"}}}
+        },
+        {
+          "title": "Training Step",
+          "type": "stat",
+          "gridPos": {"h": 4, "w": 6, "x": 12, "y": 24},
+          "targets": [{"expr": "monarch_training_step", "legendFormat": "step"}]
+        },
+        {
+          "title": "Policy Version",
+          "type": "stat",
+          "gridPos": {"h": 4, "w": 6, "x": 18, "y": 24},
+          "targets": [{"expr": "monarch_policy_version", "legendFormat": "version"}]
+        }
+      ],
+      "schemaVersion": 39,
+      "templating": {"list": []},
+      "time": {"from": "now-1h", "to": "now"},
+      "refresh": "10s"
+    }
