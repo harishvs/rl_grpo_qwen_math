@@ -6,8 +6,12 @@ Monarch internal logs are being written to /tmp/root/monarch_log.log; execution 
 Setting up torch elastic env on learner mesh...
 Spawning actors...
 All actors spawned, initializing learner FSDP...
-Generating train split:   0%|          | 0/7473 [00:00<?, ? examples/s]Generating train split: 100%|██████████| 7473/7473 [00:00<00:00, 212706.70 examples/s]
-Generating test split:   0%|          | 0/1319 [00:00<?, ? examples/s]Generating test split: 100%|██████████| 1319/1319 [00:00<00:00, 197110.02 examples/s]
+
+Generating train split:   0%|          | 0/7473 [00:00<?, ? examples/s]
+Generating train split: 100%|██████████| 7473/7473 [00:00<00:00, 212706.70 examples/s]
+
+Generating test split:   0%|          | 0/1319 [00:00<?, ? examples/s]
+Generating test split: 100%|██████████| 1319/1319 [00:00<00:00, 197110.02 examples/s]
   Learner: ({'hosts': 0/1, 'gpus': 0/8}, 'rank 0/8 initialized on cuda:0')
   Learner: ({'hosts': 0/1, 'gpus': 1/8}, 'rank 1/8 initialized on cuda:1')
   Learner: ({'hosts': 0/1, 'gpus': 2/8}, 'rank 2/8 initialized on cuda:2')
