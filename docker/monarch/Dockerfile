@@ -14,8 +14,8 @@ RUN apt-get update && \
     rm -rf /tmp/aws-efa-installer* && \
     rm -rf /var/lib/apt/lists/*
 
-# Install torchmonarch first (may upgrade PyTorch)
-RUN pip install --no-cache-dir torchmonarch==0.4.0 kubernetes>=28.0.0
+# Install torchmonarch with OFI/libfabric RDMA support (fixes EFA compatibility)
+RUN pip install --no-cache-dir https://github.com/harishvs/monarch/releases/download/v0.5.0-ofi/torchmonarch-0.5.0+ofi-cp312-cp312-linux_x86_64.whl kubernetes>=28.0.0
 
 # Reinstall vLLM against the current PyTorch version
 # (torchmonarch may have upgraded PyTorch, breaking pre-compiled extensions)
