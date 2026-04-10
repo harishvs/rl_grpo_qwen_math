@@ -44,6 +44,8 @@ spec:
         value: "1"
       - name: FI_PROVIDER
         value: efa
+      - name: MONARCH_RDMA_DISABLE_IBVERBS
+        value: "true"
       ports:
       - containerPort: 9090
         name: metrics
