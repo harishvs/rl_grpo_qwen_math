@@ -120,6 +120,13 @@ async def main(config_path: str):
     gen_result = await generator.initialize.call_one()
     print(f"  Generator: {gen_result}", flush=True)
 
+    # Set up RDMA weight sync — each learner rank exposes its local shard
+    print("Setting up RDMA shard-based weight sync...", flush=True)
+    shard_handles = await learner.expose_shards.call()
+    shard_list = list(shard_handles.values())
+    await generator.set_shard_handles.call_one(shard_list)
+    print(f"RDMA configured: {len(shard_list)} shards", flush=True)
+
     # --- Training loop ---
     prompts_per_step = config.data.train_batch_size // config.generator.group_size
     dataset_stats = await dataset.get_stats.call_one()
@@ -208,12 +215,11 @@ async def main(config_path: str):
         t_train = time.time() - t_phase
         t_phase = time.time()
 
-        # 7. Sync weights to generator (every N steps)
+        # 7. Sync weights via RDMA (every N steps)
         t_sync = 0.0
         if step > 0 and step % config.trainer.weight_sync_interval == 0:
-            weights_list = await learner.get_weights.call()
-            weights_bytes = weights_list.values()[0]
-            await generator.update_weights.call_one(weights_bytes, step)
+            await learner.refresh_shards.call()
+            await generator.sync_weights_rdma.call_one(step)
             t_sync = time.time() - t_phase
 
         # 8. Checkpoint
