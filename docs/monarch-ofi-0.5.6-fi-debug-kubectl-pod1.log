@@ -1,0 +1,412 @@
+Monarch worker listening on tcp://grpo-monarch-1.grpo-monarch-svc.default.svc.cluster.local:26600
+Monarch internal logs are being written to /tmp/root/monarch_log.log; execution id root_Apr-11_02:11_80
+libfabric:182:1775873534::core:core:fi_param_get_():372<info> variable perf_cntr=<not set>
+libfabric:182:1775873534::core:core:fi_param_get_():372<info> variable hook=<not set>
+libfabric:182:1775873534::core:core:fi_param_get_():372<info> variable hmem=<not set>
+libfabric:182:1775873534::core:core:cuda_hmem_verify_devices():567<info> Number of NVIDIA devices detected: 8
+libfabric:182:1775873534::core:core:cuda_hmem_verify_devices():596<info> Number of CUDA devices detected: 8
+libfabric:182:1775873534::core:core:cuda_hmem_detect_p2p_access_support():641<info> Peer access from CUDA device 0 -> CUDA device 1 : Yes
+libfabric:182:1775873534::core:core:cuda_hmem_detect_p2p_access_support():641<info> Peer access from CUDA device 1 -> CUDA device 2 : Yes
+libfabric:182:1775873534::core:core:cuda_hmem_detect_p2p_access_support():641<info> Peer access from CUDA device 2 -> CUDA device 3 : Yes
+libfabric:182:1775873534::core:core:cuda_hmem_detect_p2p_access_support():641<info> Peer access from CUDA device 3 -> CUDA device 4 : Yes
+libfabric:182:1775873534::core:core:cuda_hmem_detect_p2p_access_support():641<info> Peer access from CUDA device 4 -> CUDA device 5 : Yes
+libfabric:182:1775873534::core:core:cuda_hmem_detect_p2p_access_support():641<info> Peer access from CUDA device 5 -> CUDA device 6 : Yes
+libfabric:182:1775873534::core:core:cuda_hmem_detect_p2p_access_support():641<info> Peer access from CUDA device 6 -> CUDA device 7 : Yes
+libfabric:182:1775873534::core:core:cuda_hmem_detect_dmabuf_support():680<info> cuda dmabuf support status: 1
+libfabric:182:1775873534::core:core:fi_param_get_():372<info> variable hmem_cuda_use_gdrcopy=<not set>
+libfabric:182:1775873534::core:core:cuda_gdrcopy_dl_hmem_init():105<info> Trying to load: libgdrapi.so
+libfabric:182:1775873534::core:core:cuda_gdrcopy_dl_hmem_init():128<info> Loaded GDRCopy library: /lib/x86_64-linux-gnu/libgdrapi.so
+libfabric:182:1775873534::core:core:cuda_gdrcopy_hmem_init():183<warn> gdr_open failed!
+libfabric:182:1775873534::core:core:cuda_hmem_init():816<warn> gdrcopy initialization failed! gdrcopy will not be used.
+libfabric:182:1775873534::core:core:ofi_hmem_init():665<info> Hmem iface FI_HMEM_ROCR not supported
+libfabric:182:1775873534::core:core:ofi_hmem_init():665<info> Hmem iface FI_HMEM_ZE not supported
+libfabric:182:1775873534::core:core:neuron_dl_init():65<info> Failed to dlopen libnrt.so.1
+libfabric:182:1775873534::core:core:ofi_hmem_init():665<info> Hmem iface FI_HMEM_NEURON not supported
+libfabric:182:1775873534::core:core:synapseai_dl_init():59<info> Failed to dlopen libSynapse.so
+libfabric:182:1775873534::core:core:ofi_hmem_init():665<info> Hmem iface FI_HMEM_SYNAPSEAI not supported
+libfabric:182:1775873534::core:core:fi_param_get_():372<info> variable hmem_disable_p2p=<not set>
+libfabric:182:1775873534::core:mr:ofi_monitors_init():238<info> Initializing memory monitor uffd
+libfabric:182:1775873534::core:mr:ofi_monitors_init():238<info> Initializing memory monitor memhooks
+libfabric:182:1775873534::core:mr:ofi_monitors_init():238<info> Initializing memory monitor cuda
+libfabric:182:1775873534::core:mr:ofi_monitors_init():238<info> Initializing memory monitor cuda_ipc
+libfabric:182:1775873534::core:mr:ofi_monitors_init():238<info> Initializing memory monitor rocr
+libfabric:182:1775873534::core:mr:ofi_monitors_init():238<info> Initializing memory monitor rocr_ipc
+libfabric:182:1775873534::core:mr:ofi_monitors_init():238<info> Initializing memory monitor xpmem
+libfabric:182:1775873534::core:mr:ofi_monitors_init():238<info> Initializing memory monitor ze
+libfabric:182:1775873534::core:mr:ofi_monitors_init():238<info> Initializing memory monitor ze_ipc
+libfabric:182:1775873534::core:mr:ofi_monitors_init():238<info> Initializing memory monitor import
+libfabric:182:1775873534::core:mr:ofi_monitors_init():238<info> Initializing memory monitor kdreg2
+libfabric:182:1775873534::core:core:fi_param_get_():372<info> variable mr_cache_max_size=<not set>
+libfabric:182:1775873534::core:core:fi_param_get_():372<info> variable mr_cache_max_count=<not set>
+libfabric:182:1775873534::core:core:fi_param_get_():372<info> variable mr_cache_monitor=<not set>
+libfabric:182:1775873534::core:core:fi_param_get_():372<info> variable mr_cuda_cache_monitor_enabled=<not set>
+libfabric:182:1775873534::core:core:fi_param_get_():372<info> variable mr_rocr_cache_monitor_enabled=<not set>
+libfabric:182:1775873534::core:core:fi_param_get_():372<info> variable mr_ze_cache_monitor_enabled=<not set>
+libfabric:182:1775873534::core:mr:ofi_default_cache_size():66<info> default cache size=6273641877
+libfabric:182:1775873534::core:mr:ofi_monitors_init():315<info> Default memory monitor is: memhooks
+libfabric:182:1775873534::core:core:fi_param_get_():381<info> read string var provider=efa
+libfabric:182:1775873534::core:core:fi_param_get_():372<info> variable fork_unsafe=<not set>
+libfabric:182:1775873534::core:core:fi_param_get_():372<info> variable universe_size=<not set>
+libfabric:182:1775873534::core:core:fi_param_get_():372<info> variable av_remove_cleanup=<not set>
+libfabric:182:1775873534::core:core:fi_param_get_():372<info> variable offload_coll_provider=<not set>
+libfabric:182:1775873534::core:core:fi_param_get_():372<info> variable provider_path=<not set>
+libfabric:182:1775873534::shm:core:fi_param_get_():372<info> variable sar_threshold=<not set>
+libfabric:182:1775873534::shm:core:fi_param_get_():372<info> variable tx_size=<not set>
+libfabric:182:1775873534::shm:core:fi_param_get_():372<info> variable rx_size=<not set>
+libfabric:182:1775873534::shm:core:fi_param_get_():372<info> variable disable_cma=<not set>
+libfabric:182:1775873534::shm:core:fi_param_get_():372<info> variable use_dsa_sar=<not set>
+libfabric:182:1775873534::shm:core:fi_param_get_():372<info> variable use_xpmem=<not set>
+libfabric:182:1775873534::core:core:ofi_register_provider():526<info> registering provider: shm (204.0)
+libfabric:182:1775873534::core:core:ofi_register_provider():553<info> "shm" filtered by provider include/exclude list, skipping
+libfabric:182:1775873534::core:core:ofi_register_provider():526<info> registering provider: sm2 (204.0)
+libfabric:182:1775873534::core:core:ofi_register_provider():553<info> "sm2" filtered by provider include/exclude list, skipping
+libfabric:182:1775873534::ofi_rxm:core:fi_param_get_():372<info> variable enable_passthru=<not set>
+libfabric:182:1775873534::ofi_rxm:core:fi_param_get_():372<info> variable buffer_size=<not set>
+libfabric:182:1775873534::ofi_rxm:core:fi_param_get_():372<info> variable tx_size=<not set>
+libfabric:182:1775873534::ofi_rxm:core:fi_param_get_():372<info> variable rx_size=<not set>
+libfabric:182:1775873534::ofi_rxm:core:fi_param_get_():372<info> variable msg_tx_size=<not set>
+libfabric:182:1775873534::ofi_rxm:core:fi_param_get_():372<info> variable msg_rx_size=<not set>
+libfabric:182:1775873534::ofi_rxm:core:fi_param_get_():372<info> variable cm_progress_interval=<not set>
+libfabric:182:1775873534::ofi_rxm:core:fi_param_get_():372<info> variable cq_eq_fairness=<not set>
+libfabric:182:1775873534::ofi_rxm:core:fi_param_get_():372<info> variable data_auto_progress=<not set>
+libfabric:182:1775873534::ofi_rxm:core:fi_param_get_():372<info> variable use_rndv_write=<not set>
+libfabric:182:1775873534::ofi_rxm:core:fi_param_get_():372<info> variable def_wait_obj=<not set>
+libfabric:182:1775873534::ofi_rxm:core:fi_param_get_():372<info> variable def_tcp_wait_obj=<not set>
+libfabric:182:1775873534::ofi_rxm:core:fi_param_get_():372<info> variable detect_hmem_iface=<not set>
+libfabric:182:1775873534::ofi_rxm:core:fi_param_get_():372<info> variable rescan=<not set>
+libfabric:182:1775873534::core:core:ofi_register_provider():526<info> registering provider: ofi_rxm (204.0)
+libfabric:182:1775873534::ofi_mrail:core:fi_param_get_():372<info> variable config=<not set>
+libfabric:182:1775873534::ofi_mrail:core:fi_param_get_():372<info> variable addr=<not set>
+libfabric:182:1775873534::ofi_mrail:core:fi_param_get_():372<info> variable addr_strc=<not set>
+libfabric:182:1775873534::ofi_mrail:core:mrail_parse_env_vars():115<info> unable to read FI_OFI_MRAIL_ADDR env variable
+libfabric:182:1775873534::core:core:ofi_register_provider():526<info> registering provider: ofi_mrail (204.0)
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable tx_min_credits=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable iface=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable tx_queue_size=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable enable_shm_transfer=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable use_zcpy_rx=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable zcpy_rx_seed=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable shm_av_size=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable recvwin_size=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable readcopy_pool_size=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable cq_size=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable max_memcpy_size=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable mr_cache_enable=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable mr_max_cached_count=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable mr_max_cached_size=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable tx_size=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable rx_size=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable internal_rx_refill_threshold=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable implicit_av_size=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable rx_copy_unexp=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable rx_copy_ooo=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable max_timeout=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable timeout_interval=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable efa_cq_read_size=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable shm_cq_read_size=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable inter_read_segment_size=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable inter_max_gdrcopy_message_size=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable use_sm2=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable use_unsolicited_write_recv=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable use_huge_page=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable use_data_path_direct=<not set>
+libfabric:182:1775873534::efa:fabric:efa_device_list_initialize():223<info> ibv_get_device_list returns total_device_cnt=4
+libfabric:182:1775873534::efa:core:efa_device_construct_gid():50<info> Opened ibv device with ibv_ctx 0x7f9fa403d328
+libfabric:182:1775873534::efa:core:efa_device_construct_gid():50<info> Opened ibv device with ibv_ctx 0x7f9fa403ed78
+libfabric:182:1775873534::efa:core:efa_device_construct_gid():50<info> Opened ibv device with ibv_ctx 0x7f9fa40402d8
+libfabric:182:1775873534::efa:core:efa_device_construct_gid():50<info> Opened ibv device with ibv_ctx 0x7f9fa4041ab8
+libfabric:182:1775873534::efa:fabric:efa_device_list_initialize():290<info> g_efa_selected_device_cnt=4, g_efa_ibv_gid_cnt=4
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable runt_size=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable inter_max_medium_message_size=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable inter_min_read_message_size=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable inter_min_read_write_size=<not set>
+libfabric:182:1775873534::core:core:fi_param_get_():372<info> variable hmem_cuda_use_dmabuf=<not set>
+libfabric:182:1775873534::core:core:cuda_get_dmabuf_fd():736<info> cuMemGetHandleForAddressRange failed with flags: 1, invalid argument. Retrying with no flags.
+libfabric:182:1775873534::core:core:cuda_get_dmabuf_fd():753<info> Get dma buf handle with fd: 89, offset: 0, page aligned base address: 0x7f9d9f200000, page aligned size: 8192, cuda allocation address 0x7f9d9f200000, cuda allocation length: 8192
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable runt_size=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable inter_min_read_message_size=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable inter_min_read_write_size=<not set>
+libfabric:182:1775873534::efa:core:fi_param_get_():372<info> variable inter_max_medium_message_size=<not set>
+libfabric:182:1775873534::efa:core:efa_hmem_info_init_iface():355<info> FI_HMEM_ROCR is not initialized
+libfabric:182:1775873534::efa:core:efa_hmem_info_init_iface():355<info> FI_HMEM_NEURON is not initialized
+libfabric:182:1775873534::efa:core:efa_hmem_info_init_iface():355<info> FI_HMEM_SYNAPSEAI is not initialized
+libfabric:182:1775873534::core:core:ofi_register_provider():526<info> registering provider: efa (204.0)
+libfabric:182:1775873534::core:core:ofi_register_provider():526<info> registering provider: udp (204.0)
+libfabric:182:1775873534::core:core:ofi_register_provider():553<info> "udp" filtered by provider include/exclude list, skipping
+libfabric:182:1775873534::core:core:ofi_register_provider():526<info> registering provider: sockets (204.0)
+libfabric:182:1775873534::core:core:ofi_register_provider():553<info> "sockets" filtered by provider include/exclude list, skipping
+libfabric:182:1775873534::tcp:core:fi_param_get_():372<info> variable prov_name=<not set>
+libfabric:182:1775873534::tcp:core:fi_param_get_():372<info> variable port_high_range=<not set>
+libfabric:182:1775873534::tcp:core:fi_param_get_():372<info> variable port_low_range=<not set>
+libfabric:182:1775873534::tcp:core:fi_param_get_():372<info> variable tx_size=<not set>
+libfabric:182:1775873534::tcp:core:fi_param_get_():372<info> variable rx_size=<not set>
+libfabric:182:1775873534::tcp:core:fi_param_get_():372<info> variable max_inject=<not set>
+libfabric:182:1775873534::tcp:core:fi_param_get_():372<info> variable max_saved=<not set>
+libfabric:182:1775873534::tcp:core:fi_param_get_():372<info> variable max_saved_size=<not set>
+libfabric:182:1775873534::tcp:core:fi_param_get_():372<info> variable max_rx_size=<not set>
+libfabric:182:1775873534::tcp:core:fi_param_get_():372<info> variable nodelay=<not set>
+libfabric:182:1775873534::tcp:core:fi_param_get_():372<info> variable staging_sbuf_size=<not set>
+libfabric:182:1775873534::tcp:core:fi_param_get_():372<info> variable prefetch_rbuf_size=<not set>
+libfabric:182:1775873534::tcp:core:fi_param_get_():372<info> variable zerocopy_size=<not set>
+libfabric:182:1775873534::tcp:core:fi_param_get_():372<info> variable trace_msg=<not set>
+libfabric:182:1775873534::tcp:core:fi_param_get_():372<info> variable disable_auto_progress=<not set>
+libfabric:182:1775873534::tcp:core:fi_param_get_():372<info> variable io_uring=<not set>
+libfabric:182:1775873534::tcp:core:fi_param_get_():372<info> variable firewall_addr=<not set>
+libfabric:182:1775873534::core:core:ofi_register_provider():526<info> registering provider: tcp (204.0)
+libfabric:182:1775873534::core:core:ofi_register_provider():553<info> "tcp" filtered by provider include/exclude list, skipping
+libfabric:182:1775873534::core:core:ofi_register_provider():526<info> registering provider: lnx (204.0)
+libfabric:182:1775873534::core:core:ofi_register_provider():526<info> registering provider: ofi_hook_perf (204.0)
+libfabric:182:1775873534::core:core:ofi_register_provider():526<info> registering provider: ofi_hook_trace (204.0)
+libfabric:182:1775873534::ofi_hook_monitor:core:fi_param_get_():372<info> variable linger=<not set>
+libfabric:182:1775873534::ofi_hook_monitor:core:fi_param_get_():372<info> variable tick_max=<not set>
+libfabric:182:1775873534::ofi_hook_monitor:core:fi_param_get_():372<info> variable file_mode=<not set>
+libfabric:182:1775873534::ofi_hook_monitor:core:fi_param_get_():372<info> variable dir_mode=<not set>
+libfabric:182:1775873534::ofi_hook_monitor:core:fi_param_get_():372<info> variable basepath=<not set>
+libfabric:182:1775873534::core:core:ofi_register_provider():526<info> registering provider: ofi_hook_monitor (204.0)
+libfabric:182:1775873534::core:core:ofi_register_provider():526<info> registering provider: ofi_hook_debug (204.0)
+libfabric:182:1775873534::core:core:ofi_register_provider():526<info> registering provider: ofi_hook_hmem (204.0)
+libfabric:182:1775873534::core:core:ofi_register_provider():526<info> registering provider: ofi_hook_dmabuf_peer_mem (204.0)
+libfabric:182:1775873534::core:core:ofi_register_provider():526<info> registering provider: ofi_hook_noop (204.0)
+libfabric:182:1775873534::core:core:ofi_register_provider():526<info> registering provider: off_coll (204.0)
+libfabric:182:1775873534::efa:core:ofi_check_info():1157<info> Unsupported capabilities
+libfabric:182:1775873534::efa:core:ofi_check_info():1158<info> Supported: FI_MSG, FI_RECV, FI_SEND, FI_LOCAL_COMM, FI_REMOTE_COMM, FI_SOURCE, FI_HMEM
+libfabric:182:1775873534::efa:core:ofi_check_info():1158<info> Requested: FI_MSG, FI_RMA
+libfabric:182:1775873534::efa:core:ofi_check_info():1157<info> Unsupported capabilities
+libfabric:182:1775873534::efa:core:ofi_check_info():1158<info> Supported: FI_MSG, FI_RECV, FI_SEND, FI_LOCAL_COMM, FI_REMOTE_COMM, FI_SOURCE, FI_HMEM
+libfabric:182:1775873534::efa:core:ofi_check_info():1158<info> Requested: FI_MSG, FI_RMA
+libfabric:182:1775873534::efa:core:ofi_check_info():1157<info> Unsupported capabilities
+libfabric:182:1775873534::efa:core:ofi_check_info():1158<info> Supported: FI_MSG, FI_RECV, FI_SEND, FI_LOCAL_COMM, FI_REMOTE_COMM, FI_SOURCE, FI_HMEM
+libfabric:182:1775873534::efa:core:ofi_check_info():1158<info> Requested: FI_MSG, FI_RMA
+libfabric:182:1775873534::efa:core:ofi_check_info():1157<info> Unsupported capabilities
+libfabric:182:1775873534::efa:core:ofi_check_info():1158<info> Supported: FI_MSG, FI_RECV, FI_SEND, FI_LOCAL_COMM, FI_REMOTE_COMM, FI_SOURCE, FI_HMEM
+libfabric:182:1775873534::efa:core:ofi_check_info():1158<info> Requested: FI_MSG, FI_RMA
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():740<info> unsupported endpoint type
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():741<info> Supported: FI_EP_DGRAM
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():741<info> Requested: FI_EP_RDM
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():740<info> unsupported endpoint type
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():741<info> Supported: FI_EP_DGRAM
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():741<info> Requested: FI_EP_RDM
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():740<info> unsupported endpoint type
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():741<info> Supported: FI_EP_DGRAM
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():741<info> Requested: FI_EP_RDM
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():740<info> unsupported endpoint type
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():741<info> Supported: FI_EP_DGRAM
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():741<info> Requested: FI_EP_RDM
+libfabric:182:1775873534::ofi_rxm:core:fi_param_get_():372<info> variable use_srx=<not set>
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1263<info> Provider ofi_rxm is excluded
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1274<info> Need core provider, skipping ofi_mrail
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1274<info> Need core provider, skipping lnx
+libfabric:182:1775873534::ofi_rxm:core:fi_param_get_():372<info> variable use_srx=<not set>
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1263<info> Provider ofi_rxm is excluded
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1274<info> Need core provider, skipping ofi_mrail
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1274<info> Need core provider, skipping lnx
+libfabric:182:1775873534::ofi_rxm:core:fi_param_get_():372<info> variable use_srx=<not set>
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1281<info> Skipping util;efa layering
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1274<info> Need core provider, skipping ofi_rxm
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1274<info> Need core provider, skipping ofi_mrail
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1274<info> Need core provider, skipping lnx
+libfabric:182:1775873534::ofi_rxm:core:fi_param_get_():372<info> variable use_srx=<not set>
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1281<info> Skipping util;efa layering
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1274<info> Need core provider, skipping ofi_rxm
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1274<info> Need core provider, skipping ofi_mrail
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1274<info> Need core provider, skipping lnx
+libfabric:182:1775873534::core:core:fi_getinfo_():1384<info> fi_getinfo: provider ofi_rxm returned -61 (No data available)
+libfabric:182:1775873534::ofi_mrail:fabric:mrail_get_core_info():285<info> OFI_MRAIL_ADDR_STRC env variable not set!
+libfabric:182:1775873534::core:core:fi_getinfo_():1384<info> fi_getinfo: provider ofi_mrail returned -61 (No data available)
+libfabric:182:1775873534::lnx:core:fi_param_get_():372<info> variable prov_links=<not set>
+libfabric:182:1775873534::core:core:fi_getinfo_():1384<info> fi_getinfo: provider lnx returned -61 (No data available)
+libfabric:182:1775873534::efa:core:ofi_check_info():1157<info> Unsupported capabilities
+libfabric:182:1775873534::efa:core:ofi_check_info():1158<info> Supported: FI_MSG, FI_RECV, FI_SEND, FI_LOCAL_COMM, FI_REMOTE_COMM, FI_SOURCE, FI_HMEM
+libfabric:182:1775873534::efa:core:ofi_check_info():1158<info> Requested: FI_MSG, FI_RMA, FI_HMEM
+libfabric:182:1775873534::efa:core:ofi_check_info():1157<info> Unsupported capabilities
+libfabric:182:1775873534::efa:core:ofi_check_info():1158<info> Supported: FI_MSG, FI_RECV, FI_SEND, FI_LOCAL_COMM, FI_REMOTE_COMM, FI_SOURCE, FI_HMEM
+libfabric:182:1775873534::efa:core:ofi_check_info():1158<info> Requested: FI_MSG, FI_RMA, FI_HMEM
+libfabric:182:1775873534::efa:core:ofi_check_info():1157<info> Unsupported capabilities
+libfabric:182:1775873534::efa:core:ofi_check_info():1158<info> Supported: FI_MSG, FI_RECV, FI_SEND, FI_LOCAL_COMM, FI_REMOTE_COMM, FI_SOURCE, FI_HMEM
+libfabric:182:1775873534::efa:core:ofi_check_info():1158<info> Requested: FI_MSG, FI_RMA, FI_HMEM
+libfabric:182:1775873534::efa:core:ofi_check_info():1157<info> Unsupported capabilities
+libfabric:182:1775873534::efa:core:ofi_check_info():1158<info> Supported: FI_MSG, FI_RECV, FI_SEND, FI_LOCAL_COMM, FI_REMOTE_COMM, FI_SOURCE, FI_HMEM
+libfabric:182:1775873534::efa:core:ofi_check_info():1158<info> Requested: FI_MSG, FI_RMA, FI_HMEM
+libfabric:182:1775873534::efa:core:efa_user_info_should_support_hmem():214<info> User is using API version >= 1.18. CUDA library and devices are available, claim support of FI_HMEM.
+libfabric:182:1775873534::efa:core:efa_user_info_alter_rdm():324<warn> FI_HMEM capability requires device registrations (FI_MR_HMEM)
+libfabric:182:1775873534::efa:core:efa_user_info_should_support_hmem():214<info> User is using API version >= 1.18. CUDA library and devices are available, claim support of FI_HMEM.
+libfabric:182:1775873534::efa:core:efa_user_info_alter_rdm():324<warn> FI_HMEM capability requires device registrations (FI_MR_HMEM)
+libfabric:182:1775873534::efa:core:efa_user_info_should_support_hmem():214<info> User is using API version >= 1.18. CUDA library and devices are available, claim support of FI_HMEM.
+libfabric:182:1775873534::efa:core:efa_user_info_alter_rdm():324<warn> FI_HMEM capability requires device registrations (FI_MR_HMEM)
+libfabric:182:1775873534::efa:core:efa_user_info_should_support_hmem():214<info> User is using API version >= 1.18. CUDA library and devices are available, claim support of FI_HMEM.
+libfabric:182:1775873534::efa:core:efa_user_info_alter_rdm():324<warn> FI_HMEM capability requires device registrations (FI_MR_HMEM)
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():740<info> unsupported endpoint type
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():741<info> Supported: FI_EP_DGRAM
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():741<info> Requested: FI_EP_RDM
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():740<info> unsupported endpoint type
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():741<info> Supported: FI_EP_DGRAM
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():741<info> Requested: FI_EP_RDM
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():740<info> unsupported endpoint type
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():741<info> Supported: FI_EP_DGRAM
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():741<info> Requested: FI_EP_RDM
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():740<info> unsupported endpoint type
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():741<info> Supported: FI_EP_DGRAM
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():741<info> Requested: FI_EP_RDM
+libfabric:182:1775873534::core:core:fi_getinfo_():1391<warn> fi_getinfo: provider efa output empty list
+libfabric:182:1775873534::ofi_rxm:core:fi_param_get_():372<info> variable use_srx=<not set>
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1263<info> Provider ofi_rxm is excluded
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1274<info> Need core provider, skipping ofi_mrail
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1274<info> Need core provider, skipping lnx
+libfabric:182:1775873534::ofi_rxm:core:ofi_check_info():1157<info> Unsupported capabilities
+libfabric:182:1775873534::ofi_rxm:core:ofi_check_info():1158<info> Supported: FI_MSG, FI_RMA, FI_TAGGED, FI_ATOMIC, FI_READ, FI_WRITE, FI_RECV, FI_SEND, FI_REMOTE_READ, FI_REMOTE_WRITE, FI_MULTI_RECV, FI_LOCAL_COMM, FI_REMOTE_COMM, FI_SOURCE, FI_DIRECTED_RECV, FI_AV_USER_ID, FI_PEER
+libfabric:182:1775873534::ofi_rxm:core:ofi_check_info():1158<info> Requested: FI_MSG, FI_RMA, FI_HMEM
+libfabric:182:1775873534::ofi_rxm:core:fi_param_get_():372<info> variable use_srx=<not set>
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1281<info> Skipping util;efa layering
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1274<info> Need core provider, skipping ofi_rxm
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1274<info> Need core provider, skipping ofi_mrail
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1274<info> Need core provider, skipping lnx
+libfabric:182:1775873534::ofi_rxm:core:ofi_check_info():1157<info> Unsupported capabilities
+libfabric:182:1775873534::ofi_rxm:core:ofi_check_info():1158<info> Supported: FI_MSG, FI_RMA, FI_TAGGED, FI_ATOMIC, FI_COLLECTIVE, FI_READ, FI_WRITE, FI_RECV, FI_SEND, FI_REMOTE_READ, FI_REMOTE_WRITE, FI_MULTI_RECV, FI_LOCAL_COMM, FI_REMOTE_COMM, FI_SOURCE, FI_DIRECTED_RECV, FI_AV_USER_ID, FI_PEER
+libfabric:182:1775873534::ofi_rxm:core:ofi_check_info():1158<info> Requested: FI_MSG, FI_RMA, FI_HMEM
+libfabric:182:1775873534::core:core:fi_getinfo_():1384<info> fi_getinfo: provider ofi_rxm returned -61 (No data available)
+libfabric:182:1775873534::ofi_mrail:fabric:mrail_get_core_info():285<info> OFI_MRAIL_ADDR_STRC env variable not set!
+libfabric:182:1775873534::core:core:fi_getinfo_():1384<info> fi_getinfo: provider ofi_mrail returned -61 (No data available)
+libfabric:182:1775873534::lnx:core:fi_param_get_():372<info> variable prov_links=<not set>
+libfabric:182:1775873534::core:core:fi_getinfo_():1384<info> fi_getinfo: provider lnx returned -61 (No data available)
+libfabric:182:1775873534::efa:core:ofi_check_info():1157<info> Unsupported capabilities
+libfabric:182:1775873534::efa:core:ofi_check_info():1158<info> Supported: FI_MSG, FI_RECV, FI_SEND, FI_LOCAL_COMM, FI_REMOTE_COMM, FI_SOURCE, FI_HMEM
+libfabric:182:1775873534::efa:core:ofi_check_info():1158<info> Requested: FI_MSG, FI_RMA
+libfabric:182:1775873534::efa:core:ofi_check_info():1157<info> Unsupported capabilities
+libfabric:182:1775873534::efa:core:ofi_check_info():1158<info> Supported: FI_MSG, FI_RECV, FI_SEND, FI_LOCAL_COMM, FI_REMOTE_COMM, FI_SOURCE, FI_HMEM
+libfabric:182:1775873534::efa:core:ofi_check_info():1158<info> Requested: FI_MSG, FI_RMA
+libfabric:182:1775873534::efa:core:ofi_check_info():1157<info> Unsupported capabilities
+libfabric:182:1775873534::efa:core:ofi_check_info():1158<info> Supported: FI_MSG, FI_RECV, FI_SEND, FI_LOCAL_COMM, FI_REMOTE_COMM, FI_SOURCE, FI_HMEM
+libfabric:182:1775873534::efa:core:ofi_check_info():1158<info> Requested: FI_MSG, FI_RMA
+libfabric:182:1775873534::efa:core:ofi_check_info():1157<info> Unsupported capabilities
+libfabric:182:1775873534::efa:core:ofi_check_info():1158<info> Supported: FI_MSG, FI_RECV, FI_SEND, FI_LOCAL_COMM, FI_REMOTE_COMM, FI_SOURCE, FI_HMEM
+libfabric:182:1775873534::efa:core:ofi_check_info():1158<info> Requested: FI_MSG, FI_RMA
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():740<info> unsupported endpoint type
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():741<info> Supported: FI_EP_DGRAM
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():741<info> Requested: FI_EP_RDM
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():740<info> unsupported endpoint type
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():741<info> Supported: FI_EP_DGRAM
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():741<info> Requested: FI_EP_RDM
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():740<info> unsupported endpoint type
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():741<info> Supported: FI_EP_DGRAM
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():741<info> Requested: FI_EP_RDM
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():740<info> unsupported endpoint type
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():741<info> Supported: FI_EP_DGRAM
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():741<info> Requested: FI_EP_RDM
+libfabric:182:1775873534::ofi_rxm:core:fi_param_get_():372<info> variable use_srx=<not set>
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1263<info> Provider ofi_rxm is excluded
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1274<info> Need core provider, skipping ofi_mrail
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1274<info> Need core provider, skipping lnx
+libfabric:182:1775873534::ofi_rxm:core:fi_param_get_():372<info> variable use_srx=<not set>
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1263<info> Provider ofi_rxm is excluded
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1274<info> Need core provider, skipping ofi_mrail
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1274<info> Need core provider, skipping lnx
+libfabric:182:1775873534::ofi_rxm:core:fi_param_get_():372<info> variable use_srx=<not set>
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1281<info> Skipping util;efa layering
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1274<info> Need core provider, skipping ofi_rxm
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1274<info> Need core provider, skipping ofi_mrail
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1274<info> Need core provider, skipping lnx
+libfabric:182:1775873534::ofi_rxm:core:fi_param_get_():372<info> variable use_srx=<not set>
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1281<info> Skipping util;efa layering
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1274<info> Need core provider, skipping ofi_rxm
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1274<info> Need core provider, skipping ofi_mrail
+libfabric:182:1775873534:ofi_rxm:core:core:ofi_layering_ok():1274<info> Need core provider, skipping lnx
+libfabric:182:1775873534::core:core:fi_getinfo_():1384<info> fi_getinfo: provider ofi_rxm returned -61 (No data available)
+libfabric:182:1775873534::ofi_mrail:fabric:mrail_get_core_info():285<info> OFI_MRAIL_ADDR_STRC env variable not set!
+libfabric:182:1775873534::core:core:fi_getinfo_():1384<info> fi_getinfo: provider ofi_mrail returned -61 (No data available)
+libfabric:182:1775873534::lnx:core:fi_param_get_():372<info> variable prov_links=<not set>
+libfabric:182:1775873534::core:core:fi_getinfo_():1384<info> fi_getinfo: provider lnx returned -61 (No data available)
+libfabric:182:1775873534::core:core:fi_fabric_():1588<info> Opened fabric: efa
+libfabric:182:1775873534::core:core:fi_fabric_():1595<info> Using efa provider 2.4, path:/opt/amazon/efa/lib/libfabric.so.1
+libfabric:182:1775873534::efa:domain:efa_domain_init_device_and_pd():100<info> Domain rdmap16s27-rdm selected device rdmap16s27
+libfabric:182:1775873534::core:mr:ofi_monitors_update():116<info> Starting memory monitor: memhooks
+libfabric:182:1775873534::core:mr:ofi_monitors_update():116<info> Starting memory monitor: cuda
+libfabric:182:1775873534::efa:domain:efa_mr_cache_open():146<info> EFA MR cache enabled, max_cnt: 235929 max_size: 92771293593
+libfabric:182:1775873534::core:core:ofi_layering_ok():1300<info> Skipping shm;ofi_rxm layering
+libfabric:182:1775873534::core:core:ofi_layering_ok():1300<info> Skipping shm;ofi_mrail layering
+libfabric:182:1775873534::core:core:fi_fabric_():1588<info> Opened fabric: shm
+libfabric:182:1775873534::core:core:fi_fabric_():1595<info> Using shm provider 2.4, path:/opt/amazon/efa/lib/libfabric.so.1
+libfabric:182:1775873534::shm:core:ofi_check_rx_attr():897<info> Tx only caps ignored in Rx caps
+libfabric:182:1775873534::shm:core:ofi_check_tx_attr():986<info> Rx only caps ignored in Tx caps
+libfabric:182:1775873534::shm:core:ofi_check_rx_attr():897<info> Tx only caps ignored in Rx caps
+libfabric:182:1775873534::shm:core:ofi_check_tx_attr():986<info> Rx only caps ignored in Tx caps
+libfabric:182:1775873534::shm:core:ofi_check_tx_attr():1023<info> inject_size too large
+libfabric:182:1775873534::shm:core:ofi_check_tx_attr():1024<info> Supported: 0
+libfabric:182:1775873534::shm:core:ofi_check_tx_attr():1024<info> Requested: 4096
+libfabric:182:1775873534::core:mr:ofi_monitors_update():116<info> Starting memory monitor: cuda_ipc
+libfabric:182:1775873534::core:core:ofi_ipc_cache_open():118<info> ipc cache enabled, max_cnt: 235929 max_size: 92771293593
+libfabric:182:1775873534::core:core:fi_param_get_():372<info> variable universe_size=<not set>
+libfabric:182:1775873534::efa:av:util_av_init():470<info> AV size 16384
+libfabric:182:1775873534::efa:av:util_av_init():470<info> AV size 16384
+libfabric:182:1775873534::shm:av:util_av_init():470<info> AV size 256
+libfabric:182:1775873534::efa:av:efa_av_open():927<info> fi_av_attr:0
+libfabric:182:1775873534::efa:core:ofi_check_info():1157<info> Unsupported capabilities
+libfabric:182:1775873534::efa:core:ofi_check_info():1158<info> Supported: FI_MSG, FI_RECV, FI_SEND, FI_LOCAL_COMM, FI_REMOTE_COMM, FI_SOURCE, FI_HMEM
+libfabric:182:1775873534::efa:core:ofi_check_info():1158<info> Requested: FI_MSG, FI_RMA, FI_READ, FI_WRITE, FI_RECV, FI_SEND, FI_MULTI_RECV, FI_LOCAL_COMM, FI_REMOTE_COMM
+libfabric:182:1775873534::efa:core:ofi_check_info():1157<info> Unsupported capabilities
+libfabric:182:1775873534::efa:core:ofi_check_info():1158<info> Supported: FI_MSG, FI_RECV, FI_SEND, FI_LOCAL_COMM, FI_REMOTE_COMM, FI_SOURCE, FI_HMEM
+libfabric:182:1775873534::efa:core:ofi_check_info():1158<info> Requested: FI_MSG, FI_RMA, FI_READ, FI_WRITE, FI_RECV, FI_SEND, FI_MULTI_RECV, FI_LOCAL_COMM, FI_REMOTE_COMM
+libfabric:182:1775873534::efa:core:ofi_check_info():1157<info> Unsupported capabilities
+libfabric:182:1775873534::efa:core:ofi_check_info():1158<info> Supported: FI_MSG, FI_RECV, FI_SEND, FI_LOCAL_COMM, FI_REMOTE_COMM, FI_SOURCE, FI_HMEM
+libfabric:182:1775873534::efa:core:ofi_check_info():1158<info> Requested: FI_MSG, FI_RMA, FI_READ, FI_WRITE, FI_RECV, FI_SEND, FI_MULTI_RECV, FI_LOCAL_COMM, FI_REMOTE_COMM
+libfabric:182:1775873534::efa:core:ofi_check_info():1157<info> Unsupported capabilities
+libfabric:182:1775873534::efa:core:ofi_check_info():1158<info> Supported: FI_MSG, FI_RECV, FI_SEND, FI_LOCAL_COMM, FI_REMOTE_COMM, FI_SOURCE, FI_HMEM
+libfabric:182:1775873534::efa:core:ofi_check_info():1158<info> Requested: FI_MSG, FI_RMA, FI_READ, FI_WRITE, FI_RECV, FI_SEND, FI_MULTI_RECV, FI_LOCAL_COMM, FI_REMOTE_COMM
+libfabric:182:1775873534::efa:core:ofi_check_rx_attr():897<info> Tx only caps ignored in Rx caps
+libfabric:182:1775873534::efa:core:ofi_check_tx_attr():986<info> Rx only caps ignored in Tx caps
+libfabric:182:1775873534::efa:core:ofi_check_rx_attr():897<info> Tx only caps ignored in Rx caps
+libfabric:182:1775873534::efa:core:ofi_check_tx_attr():986<info> Rx only caps ignored in Tx caps
+libfabric:182:1775873534::efa:core:ofi_check_rx_attr():897<info> Tx only caps ignored in Rx caps
+libfabric:182:1775873534::efa:core:ofi_check_tx_attr():986<info> Rx only caps ignored in Tx caps
+libfabric:182:1775873534::efa:core:ofi_check_rx_attr():897<info> Tx only caps ignored in Rx caps
+libfabric:182:1775873534::efa:core:ofi_check_tx_attr():986<info> Rx only caps ignored in Tx caps
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():740<info> unsupported endpoint type
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():741<info> Supported: FI_EP_DGRAM
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():741<info> Requested: FI_EP_RDM
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():740<info> unsupported endpoint type
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():741<info> Supported: FI_EP_DGRAM
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():741<info> Requested: FI_EP_RDM
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():740<info> unsupported endpoint type
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():741<info> Supported: FI_EP_DGRAM
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():741<info> Requested: FI_EP_RDM
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():740<info> unsupported endpoint type
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():741<info> Supported: FI_EP_DGRAM
+libfabric:182:1775873534::efa:core:ofi_check_ep_type():741<info> Requested: FI_EP_RDM
+libfabric:182:1775873534::core:core:ofi_layering_ok():1300<info> Skipping shm;ofi_rxm layering
+libfabric:182:1775873534::core:core:ofi_layering_ok():1300<info> Skipping shm;ofi_mrail layering
+libfabric:182:1775873534::shm:core:ofi_check_rx_attr():897<info> Tx only caps ignored in Rx caps
+libfabric:182:1775873534::shm:core:ofi_check_tx_attr():986<info> Rx only caps ignored in Tx caps
+libfabric:182:1775873534::shm:core:ofi_check_rx_attr():897<info> Tx only caps ignored in Rx caps
+libfabric:182:1775873534::shm:core:ofi_check_tx_attr():986<info> Rx only caps ignored in Tx caps
+libfabric:182:1775873534::shm:core:ofi_check_tx_attr():1023<info> inject_size too large
+libfabric:182:1775873534::shm:core:ofi_check_tx_attr():1024<info> Supported: 0
+libfabric:182:1775873534::shm:core:ofi_check_tx_attr():1024<info> Requested: 4096
+libfabric:182:1775873534::efa:ep_ctrl:efa_rdm_ep_open():546<info> efa_rdm_ep->host_id: i-0e5289def0f4bbc53
+libfabric:182:1775873534::efa:core:fi_param_get_():399<info> read bool var use_device_rdma=1
+libfabric:182:1775873534::efa:ep_ctrl:efa_rdm_ep_open():589<info> efa_rdm_ep->handle_resource_management = 2
+libfabric:182:1775873534::efa:mr:efa_mr_reg_impl():914<info> Registered memory at 0x7f9d8687d000 of size 37236736flags 0 for ibv pd 0x7f9fa404e150, total mr reg size 37236736, mr reg count 1
+libfabric:182:1775873534::efa:ep_ctrl:efa_rdm_ep_set_use_zcpy_rx():437<info> max_msg_size (18446744073709551615) is greater than the mtu size limit: 8928. Zero-copy receive protocol will be disabled.
+libfabric:182:1775873534::efa:ep_ctrl:efa_rdm_ep_set_use_zcpy_rx():482<info> efa_rdm_ep->use_zcpy_rx = 0
+libfabric:182:1775873534::efa:ep_ctrl:efa_base_ep_create_qp():355<info> creating QP with unsolicited write recv status: 0
+libfabric:182:1775873534::efa:ep_ctrl:efa_base_ep_enable_qp():411<info> QP enabled! qp_n: 0 qkey: 1098756743
+libfabric:182:1775873534::efa:ep_ctrl:efa_rdm_ep_ctrl():1408<info> libfabric 2.4.0amzn1.0 efa endpoint created! address: fi_addr_efa://[fe80::4ce:cdff:fe3e:2001]:0:1098756743
+libfabric:182:1775873534::efa:mr:efa_mr_reg_impl():914<info> Registered memory at 0x7f9e6a63e500 of size 400flags 0 for ibv pd 0x7f9fa404e150, total mr reg size 37237136, mr reg count 2
+libfabric:182:1775873534::efa:mr:efa_mr_reg_impl():914<info> Registered memory at 0x7f9d7b8fd000 of size 74461184flags 0 for ibv pd 0x7f9fa404e150, total mr reg size 111698320, mr reg count 3
+libfabric:182:1775873534::efa:av:efa_av_insert_one():504<info> Inserting address GID[fe80::4ae:30ff:fee4:908f] QP[0] QKEY[2026638861] to explicit AV ....
+libfabric:182:1775873534::efa:av:ofi_av_insert_addr():308<info> inserting addr: fi_addr_efa://[fe80::4ae:30ff:fee4:908f]:0:2026638861
+libfabric:182:1775873534::efa:av:ofi_av_insert_addr():329<info> fi_addr: 0
+libfabric:182:1775873534::efa:av:efa_av_insert_one():565<info> Successfully inserted address GID[fe80::4ae:30ff:fee4:908f] QP[0] QKEY[2026638861] to explicit AV. fi_addr: 0
+libfabric:182:1775873534::efa:ep_data:efa_rdm_ep_get_peer():71<info> Creating peer for addr 0
+libfabric:182:1775873537::efa:mr:efa_mr_dereg_impl():406<info> Deregistered memory of size 400 for ibv pd 0x7f9fa404e150, total mr reg size 111697920, mr reg count 2
+libfabric:182:1775873796::efa:cq:efa_rdm_txe_handle_error():775<info> err: 103, message: Unresponsive receiver (reachable by EFA device but handshake failed) My EFA addr: fi_addr_efa://[fe80::4ce:cdff:fe3e:2001]:0:1098756743 My host id: i-0e5289def0f4bbc53 Peer EFA addr: fi_addr_efa://[fe80::4ae:30ff:fee4:908f]:0:2026638861 Peer host id: N/A (4126)
+libfabric:182:1775873796::efa:cq:efa_rdm_txe_handle_error():790<warn> EFA provider internal txe failure err: 103, message: Unresponsive receiver (reachable by EFA device but handshake failed) My EFA addr: fi_addr_efa://[fe80::4ce:cdff:fe3e:2001]:0:1098756743 My host id: i-0e5289def0f4bbc53 Peer EFA addr: fi_addr_efa://[fe80::4ae:30ff:fee4:908f]:0:2026638861 Peer host id: N/A (4126)
+libfabric:182:1775873796::efa:cq:efa_show_help():100<warn> This error is detected locally. The peer is reachable by the EFA device but libfabric failed to complete a handshake, which indicates the error is likely due to the peer process no longer being present.
+libfabric:182:1775873796::efa:cq:efa_rdm_txe_handle_error():799<warn> Writing eq error for txe from internal operations
+libfabric:182:1775873796::efa:eq:efa_base_ep_write_eq_error():620<warn> Writing error to EQ: err: Software caused connection abort (103) prov_errno: Unresponsive receiver (reachable by EFA device but handshake failed) (4126)
+libfabric:182:1775873796::efa:cq:efa_show_help():100<warn> This error is detected locally. The peer is reachable by the EFA device but libfabric failed to complete a handshake, which indicates the error is likely due to the peer process no longer being present.
+libfabric:182:1775873796::efa:eq:efa_base_ep_write_eq_error():635<warn> Unable to write to EQ
+Libfabric EFA provider has encountered an internal error:
+
+Libfabric error: (103) Software caused connection abort
+EFA internal error: (4126) Unresponsive receiver (reachable by EFA device but handshake failed)
+
+Your application will now abort().
