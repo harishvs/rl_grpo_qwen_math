@@ -29,3 +29,4 @@ logs/
 *.tfstate.*.backup
 terraform/environments/dev/tfplan
 terraform/environments/dev/tfplan
+*.log
