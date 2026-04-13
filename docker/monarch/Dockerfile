@@ -15,7 +15,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Install torchmonarch with OFI/libfabric RDMA support (fixes EFA compatibility)
-RUN pip install --no-cache-dir https://github.com/harishvs/monarch/releases/download/v0.5.3-ofi/torchmonarch-0.5.3+ofi-cp312-cp312-linux_x86_64.whl kubernetes>=28.0.0
+RUN pip install --no-cache-dir https://github.com/harishvs/monarch/releases/download/v0.5.6/torchmonarch-0.5.6-cp312-cp312-linux_x86_64.whl kubernetes>=28.0.0
 
 # Reinstall vLLM against the current PyTorch version
 # (torchmonarch may have upgraded PyTorch, breaking pre-compiled extensions)

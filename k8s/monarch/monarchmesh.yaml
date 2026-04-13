@@ -50,6 +50,8 @@ spec:
         value: "full"
       - name: RUST_LOG
         value: "monarch_rdma=debug"
+      - name: FI_LOG_LEVEL
+        value: "debug"
       - name: LD_LIBRARY_PATH
         value: "/opt/amazon/efa/lib:/usr/local/lib/python3.12/dist-packages/torch/lib:/usr/local/lib/python3.12/dist-packages/torch_tensorrt/lib:/usr/local/cuda/compat/lib:/usr/local/nvidia/lib:/usr/local/nvidia/lib64"
       ports:
