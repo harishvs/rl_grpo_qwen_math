@@ -1,0 +1,30 @@
+graph TB
+    subgraph Custom["Custom Trainer (Split, HTTP)"]
+        direction TB
+        C_T["Trainer Pod<br/>14 GPUs, FSDP"]
+        C_V["vLLM Pod<br/>1 GPU"]
+        C_E["Environment Pod<br/>CPU"]
+        C_T -->|"HTTP weight sync<br/>22s / 3GB"| C_V
+        C_V -->|"HTTP completions"| C_T
+        C_T -->|"HTTP rewards"| C_E
+    end
+
+    subgraph veRL["veRL (Colocated, Zero-copy)"]
+        direction TB
+        V_G["All 16 GPUs cycle through:"]
+        V_1["1. Generation (vLLM)"]
+        V_2["2. Ref log probs (FSDP)"]
+        V_3["3. Training (FSDP)"]
+        V_G --> V_1 --> V_2 --> V_3
+        V_3 -->|"Zero-copy<br/>reshard"| V_1
+    end
+
+    subgraph Monarch["Monarch (Split, Actors)"]
+        direction TB
+        M_L["Learner Actor<br/>Node 0, 8 GPUs<br/>FSDP + Ref Model"]
+        M_G["Generator Actor<br/>Node 1, 1-4 GPUs<br/>vLLM TP=4"]
+        M_R["Reward Actor<br/>CPU Pod"]
+        M_L -->|"Weight sync<br/>47s RPC / 1s RDMA*"| M_G
+        M_G -->|"Completions"| M_L
+        M_L -->|"Scoring"| M_R
+    end

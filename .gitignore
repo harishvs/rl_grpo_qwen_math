@@ -30,3 +30,6 @@ logs/
 terraform/environments/dev/tfplan
 terraform/environments/dev/tfplan
 *.log
+docs/presentation/rl_intro_dn_xlt.pptx
+docs/grpo-math-training.pptx
+
