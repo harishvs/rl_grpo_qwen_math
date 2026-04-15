@@ -212,12 +212,12 @@ veRL uses a colocated architecture — every GPU runs all roles (actor, rollout,
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  RayCluster on EKS (2x p4d.24xlarge, 16x A100 40GB)         │
+│  RayCluster on EKS (2x p4d.24xlarge, 16x A100 40GB)           │
 │                                                               │
 │  Each GPU runs a WorkerDict that cycles through:              │
 │                                                               │
-│  1. Generation (~19s)  — vLLM engine, 128 sequences/GPU      │
-│  2. Ref log probs (~5s) — FSDP ref model loaded from CPU     │
+│  1. Generation (~19s)  — vLLM engine, 128 sequences/GPU       │
+│  2. Ref log probs (~5s) — FSDP ref model loaded from CPU      │
 │  3. Reward (~0.6s)     — CPU-side string matching             │
 │  4. Advantage (~0.05s) — GRPO group normalization             │
 │  5. Actor update (~39s) — FSDP training forward+backward      │
